@@ -45,3 +45,10 @@ def select_all():
 # 초기 실행 테스트
 if __name__ == "__main__":
     create_table()
+    # 예시 데이터 추가
+    insert_item("우유", "유제품", "2024-07-01", "냉장 보관")
+    insert_item("계란", "달걀류", "2024-07-10", "냉장 보관")
+    print("현재 냉장고 재료 목록:")
+    items = select_all()
+    for item in items:
+        print(f"ID: {item[0]}, 이름: {item[1]}, 카테고리: {item[2]}, 유통기한: {item[3]}, 등록일: {item[4]}, 메모: {item[5]}")

@@ -159,6 +159,17 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+# firebase admin sdk private key file
+.firebase_key.json
+
+# SQLite 데이터베이스 파일 제외
+refrigerator.db
+
+# 파이썬 캐시 파일 및 가상환경 제외
+__pycache__/
+venv/
+.venv/
+
 # Pyre type checker
 .pyre/
 
