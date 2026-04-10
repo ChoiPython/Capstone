@@ -13,3 +13,5 @@ git add .
 git commit -m
 
 # Tesseract OCR, OpenCV, 
+
+# choi test
