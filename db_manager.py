@@ -9,16 +9,25 @@ def get_connection():
 def create_table():
     conn = get_connection()
     cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS categories(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+        )
+    """)
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ingredients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            category TEXT,  
+            category_id INTEGER REFERENCES categories(id),
             exp_date TEXT NOT NULL,
             reg_date TEXT DEFAULT (datetime('now', 'localtime')),
             memo TEXT
         )
     """)
+
     conn.commit()
     conn.close()
     print("테이블 생성 완료!")
@@ -42,8 +51,22 @@ def select_all():
     conn.close()
     return rows
 
+# 5. 테이블 삭제
+def drop_table():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # FK 참조 순서 때문에 자식 테이블부터 삭제
+    cur.execute("DROP TABLE IF EXISTS ingredients")
+    cur.execute("DROP TABLE IF EXISTS categories")
+
+    conn.commit()
+    conn.close()
+    print("테이블 삭제 완료!")
+
 # 초기 실행 테스트
 if __name__ == "__main__":
+    drop_table()  # 기존 테이블 삭제 (테스트용)
     create_table()
     # 예시 데이터 추가
     insert_item("우유", "유제품", "2024-07-01", "냉장 보관")
