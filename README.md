@@ -24,14 +24,20 @@ sudo apt-get install python3-tk
 
 # 1. 환경 설치 (PyAudio, SpeechRecognition, Vosk 자동 설치)
 python setup_windows.py
+pip install faster-whisper
 
-# 2. Vosk 한국어 모델 다운로드 후 압축 해제 → 폴더명 'model'로 변경
-# https://alphacephei.com/vosk/models → vosk-model-small-ko-0.22.zip
-# 3. 실행
-python stt_main.py                          # Vosk 오프라인, 단일 발화
-python stt_main.py --engine google          # Google 온라인
-python stt_main.py --mode continuous        # 연속 인식
-python stt_main.py --list-mics             # 마이크 목록
+pip install faster-whisper numpy
+pip install noisereduce  # 선택: 노이즈 제거
+
+# small 모델 (첫 실행 시 자동 다운로드 ~250MB)
+python stt_main.py --engine whisper --model small
+
+# 더 정확하게 (느리지만 Pi5에서도 동작)
+python stt_main.py --engine whisper --model medium
+
+# 마이크 감도가 이상하면 먼저 보정
+python stt_main.py --calibrate
+
 
 # Raspberry Pi 5 배포
 # 동일한 파일 복사 후
