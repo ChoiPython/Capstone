@@ -1,29 +1,23 @@
 # final
 # 라즈베리파이5 식재료 관리 스마트 냉장고 변신 핫 
 
+# 음성인식
+이름 - 카테고리 - 유통기한(n월n일, 1일 뒤, 1일 후, 하루, 이틀, 한달, 일년, 일주일)
+
 git config --global user.email "본인이메일@example.com"
 git config --global user.name "본인이름"
 
 # 상태 확인
 git status
-
 git add .
-
 git commit -m
-
 # Tesseract OCR, OpenCV, 
-
 
 # 라즈베리 실행 시
 python3 -m venv venv
 source venv/bin/activate
 
-# tkinter 라즈베리파이 설치
-sudo apt-get install python3-tk
-
-
 # 1. 환경 설치 (PyAudio, SpeechRecognition, Vosk 자동 설치)
-
 pip install pyaudio SpeechRecognition faster-whisper numpy
 
 pip install noisereduce  # 선택: 노이즈 제거
@@ -36,7 +30,6 @@ python stt_main.py --engine whisper --model medium
 
 # 마이크 감도가 이상하면 먼저 보정
 python stt_main.py --calibrate
-
 
 # Raspberry Pi 5 배포
 # 동일한 파일 복사 후
