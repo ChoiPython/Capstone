@@ -23,10 +23,9 @@ sudo apt-get install python3-tk
 
 
 # 1. 환경 설치 (PyAudio, SpeechRecognition, Vosk 자동 설치)
-python setup_windows.py
-pip install faster-whisper
 
-pip install faster-whisper numpy
+pip install pyaudio SpeechRecognition faster-whisper numpy
+
 pip install noisereduce  # 선택: 노이즈 제거
 
 # small 모델 (첫 실행 시 자동 다운로드 ~250MB)
