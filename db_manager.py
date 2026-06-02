@@ -110,7 +110,6 @@ if __name__ == "__main__":
     drop_table()
     create_table()
     '''
-
     print("\n현재 냉장고 재료 목록:")
     for item in select_all():
         print(f"  ID:{item[0]} | 이름:{item[1]} | 카테고리:{item[2]} | 유통기한:{item[3]} | 등록일:{item[4]} | 메모:{item[5]}")
