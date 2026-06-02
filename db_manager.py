@@ -32,46 +32,85 @@ def create_table():
     conn.close()
     print("테이블 생성 완료!")
 
-# 3. 데이터 추가 (식재료 등록)
-def insert_item(name, category, exp_date, memo=""):
+# 3. 카테고리 ID 조회 (없으면 자동 생성)
+def get_or_create_category(name: str) -> int:
+    """
+    카테고리 이름으로 ID 반환.
+    DB에 없는 카테고리면 자동 등록 후 ID 반환.
+    """
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("INSERT INTO ingredients (name, category, exp_date, memo) VALUES (?, ?, ?, ?)", 
-                (name, category, exp_date, memo))
-    conn.commit()
-    conn.close()
-    print(f"{name} 등록 완료!")
 
-# 4. 데이터 조회 (전체 목록 보기)
+    cur.execute("SELECT id FROM categories WHERE name = ?", (name,))
+    row = cur.fetchone()
+
+    if row:
+        category_id = row[0]
+    else:
+        cur.execute("INSERT INTO categories (name) VALUES (?)", (name,))
+        conn.commit()
+        category_id = cur.lastrowid
+        print(f"[카테고리 자동 등록] '{name}' (id={category_id})")
+
+    conn.close()
+    return category_id
+
+# 4. 데이터 추가 (식재료 등록) - category_id FK 방식으로 수정
+def insert_item(name: str, category_name: str, exp_date: str, memo: str = "") -> bool:
+    """
+    식재료를 DB에 저장.
+    category_name → categories 테이블에서 id 조회 후 FK로 저장.
+    반환값: 성공 True / 실패 False
+    """
+    try:
+        category_id = get_or_create_category(category_name)
+
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO ingredients (name, category_id, exp_date, memo) VALUES (?, ?, ?, ?)",
+            (name, category_id, exp_date, memo)
+        )
+        conn.commit()
+        conn.close()
+        print(f"[DB 저장 완료] 이름={name} | 카테고리={category_name}(id={category_id}) | 유통기한={exp_date}")
+        return True
+
+    except Exception as e:
+        print(f"[DB 저장 실패] {e}")
+        return False
+
+# 5. 데이터 조회 (전체 목록 - 카테고리 이름 JOIN)
 def select_all():
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM ingredients ORDER BY exp_date ASC") # 유통기한 순 정렬
+    cur.execute("""
+        SELECT i.id, i.name, c.name, i.exp_date, i.reg_date, i.memo
+        FROM ingredients i
+        LEFT JOIN categories c ON i.category_id = c.id
+        ORDER BY i.exp_date ASC
+    """)
     rows = cur.fetchall()
     conn.close()
     return rows
 
-# 5. 테이블 삭제
+# 6. 테이블 삭제
 def drop_table():
     conn = get_connection()
     cur = conn.cursor()
-
-    # FK 참조 순서 때문에 자식 테이블부터 삭제
     cur.execute("DROP TABLE IF EXISTS ingredients")
     cur.execute("DROP TABLE IF EXISTS categories")
-
     conn.commit()
     conn.close()
     print("테이블 삭제 완료!")
 
 # 초기 실행 테스트
 if __name__ == "__main__":
-    drop_table()  # 기존 테이블 삭제 (테스트용)
+    '''
+    drop_table()
     create_table()
-    # 예시 데이터 추가
-    insert_item("우유", "유제품", "2024-07-01", "냉장 보관")
-    insert_item("계란", "달걀류", "2024-07-10", "냉장 보관")
-    print("현재 냉장고 재료 목록:")
-    items = select_all()
-    for item in items:
-        print(f"ID: {item[0]}, 이름: {item[1]}, 카테고리: {item[2]}, 유통기한: {item[3]}, 등록일: {item[4]}, 메모: {item[5]}")
+    '''
+
+    print("\n현재 냉장고 재료 목록:")
+    for item in select_all():
+        print(f"  ID:{item[0]} | 이름:{item[1]} | 카테고리:{item[2]} | 유통기한:{item[3]} | 등록일:{item[4]} | 메모:{item[5]}")
