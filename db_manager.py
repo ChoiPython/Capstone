@@ -1,9 +1,15 @@
+import os
 import sqlite3
 from datetime import datetime
 
+# db_manager.py 파일이 있는 디렉토리에 DB를 고정
+# → 어느 디렉토리에서 실행하든 항상 같은 DB를 바라봄
+_DIR    = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(_DIR, "refrigerator.db")
+
 # 1. DB 연결 (파일이 없으면 자동 생성됨)
 def get_connection():
-    return sqlite3.connect("refrigerator.db")
+    return sqlite3.connect(DB_PATH)
 
 # 2. 테이블 생성 (초기 1회 실행)
 def create_table():
@@ -55,7 +61,7 @@ def get_or_create_category(name: str) -> int:
     conn.close()
     return category_id
 
-# 4. 데이터 추가 (식재료 등록) - category_id FK 방식으로 수정
+# 4. 데이터 추가 (식재료 등록) - category_id FK 방식
 def insert_item(name: str, category_name: str, exp_date: str, memo: str = "") -> bool:
     """
     식재료를 DB에 저장.
@@ -106,6 +112,7 @@ def drop_table():
 
 # 초기 실행 테스트
 if __name__ == "__main__":
+    print(f"[DB 경로] {DB_PATH}")
     '''
     drop_table()
     create_table()
