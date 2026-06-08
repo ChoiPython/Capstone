@@ -274,7 +274,7 @@ class InventoryPage(tk.Frame):
         for row, item in enumerate(items, start=1):
             # 이미지 셀
             try:
-                img = Image.open('img/milk.png')
+                img = Image.open('../img/milk.png')
                 photo = ImageTk.PhotoImage(img.resize((100, 100)))
                 img_label = tk.Label(self.grid_f, image=photo, bg=self.bg_color)
                 img_label.image = photo  # 참조 저장

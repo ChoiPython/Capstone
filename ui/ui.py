@@ -38,11 +38,11 @@ class UI:
 
         # ㅡㅡㅡㅡㅡㅡ 메뉴 버튼 설정 ㅡㅡㅡㅡㅡㅡ
         # command 인자에 클릭 시 실행할 화면 전환 함수를 지정합니다.
-        self.menu_button_frame(img_path='img/home.png', text="메인 화면", 
+        self.menu_button_frame(img_path='../img/home.png', text="메인 화면", 
                                command=lambda: self.show_page("home"))
 
         # ㅡㅡㅡㅡㅡㅡ 인벤토리 버튼 설정 ㅡㅡㅡㅡㅡㅡ
-        self.menu_button_frame(img_path='img/inventory2.png', text="인벤토리", 
+        self.menu_button_frame(img_path='../img/inventory2.png', text="인벤토리", 
                                command=lambda: self.show_page("inventory"))
 
 

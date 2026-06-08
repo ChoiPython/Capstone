@@ -35,7 +35,7 @@ class ItemAdjustmentPage:
         #ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ프레임 생성ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
         self.control_bar_frame()  # 제어 바 프레임 생성
         self.item_info_frame()   # 아이템 정보 프레임 생성
-        self.image_frame(img_path='img/milk.png')  # 이미지 프레임 생성 (테스트용 이미지 경로)
+        self.image_frame(img_path='../img/milk.png')  # 이미지 프레임 생성 (테스트용 이미지 경로)
         self.item_name_frame()   # 아이템 이름 프레임 생성
         self.info_left_frame()   # 정보 왼쪽 프레임 생성
         self.add_v_line(self.info_f, "left", color="#cdcdcd", fill=None, height=180)  # 정보 프레임 안에 수직선 추가
@@ -149,7 +149,7 @@ class ItemAdjustmentPage:
         self.quantity_frame = tk.Frame(self.left_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
         self.quantity_frame.pack(side="top", fill='x', pady=15)
 
-        quantity_photo= label_img_load("img/quantity.png")              # 이미지
+        quantity_photo= label_img_load("../img/quantity.png")              # 이미지
         self.quantity_icon = tk.Label(self.quantity_frame, image=quantity_photo, bg=self.bg_color)
         self.quantity_icon.image = quantity_photo
         self.quantity_icon.pack(side="left")
@@ -163,7 +163,7 @@ class ItemAdjustmentPage:
         # # 카테고리 라벨
         self.category_frame = tk.Frame(self.left_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
         self.category_frame.pack(side="top", fill='x', pady=15)
-        category_photo = label_img_load("img/category.png")            # 이미지
+        category_photo = label_img_load("../img/category.png")            # 이미지
 
         self.category_icon = tk.Label(self.category_frame, image=category_photo, bg=self.bg_color)
         self.category_icon.image = category_photo
@@ -180,7 +180,7 @@ class ItemAdjustmentPage:
         self.unit_frame = tk.Frame(self.left_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
         self.unit_frame.pack(side="top", fill='x', pady=15)
 
-        unit_photo = label_img_load("img/unit.png")            # 이미지
+        unit_photo = label_img_load("../img/unit.png")            # 이미지
         self.unit_icon = tk.Label(self.unit_frame, image=unit_photo, bg=self.bg_color)
         self.unit_icon.image = unit_photo
         self.unit_icon.pack(side="left")
@@ -208,7 +208,7 @@ class ItemAdjustmentPage:
         self.expiry_frame = tk.Frame(self.right_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
         self.expiry_frame.pack(side="top", fill='x', pady=10)
 
-        expiry_photo = label_img_load("img/expiry.png")            # 이미지
+        expiry_photo = label_img_load("../img/expiry.png")            # 이미지
         self.expiry_icon = tk.Label(self.expiry_frame, image=expiry_photo, bg=self.bg_color)
         self.expiry_icon.image = expiry_photo
         self.expiry_icon.pack(side="left")
@@ -278,21 +278,21 @@ class ItemAdjustmentPage:
                 # 3. 상태 업데이트하기 (신선, 임박, 만료)
                 if d_day_diff < 0:
                     self.status_l.config(text=f"상태: 만료", fg='red')
-                    expired_photo = label_img_load("img/expired.png")
+                    expired_photo = label_img_load("../img/expired.png")
                     self.status_icon.config(image=expired_photo)
                     self.status_icon.image = expired_photo
                     self.status = "만료"  # 상태 업데이트
 
                 elif d_day_diff <= 3:  # 임박 기준은 3일 이내로 설정
                     self.status_l.config(text=f"상태: 임박", fg='orange')
-                    warning_photo = label_img_load("img/warning.png")
+                    warning_photo = label_img_load("../img/warning.png")
                     self.status_icon.config(image=warning_photo)
                     self.status_icon.image = warning_photo
                     self.status = "임박"  # 상태 업데이트
 
                 else:
                     self.status_l.config(text=f"상태: 신선", fg='green')
-                    fresh_photo = label_img_load("img/fresh.png")
+                    fresh_photo = label_img_load("../img/fresh.png")
                     self.status_icon.config(image=fresh_photo)
                     self.status_icon.image = fresh_photo
                     self.status = "신선"  # 상태 업데이트
@@ -317,7 +317,7 @@ class ItemAdjustmentPage:
         self.d_day_frame = tk.Frame(self.right_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
         self.d_day_frame.pack(side="top", fill='x', pady=10)
 
-        d_day_photo = label_img_load("img/d_day.png")            # 이미지
+        d_day_photo = label_img_load("../img/d_day.png")            # 이미지
         self.d_day_icon = tk.Label(self.d_day_frame, image=d_day_photo, bg=self.bg_color)
         self.d_day_icon.image = d_day_photo
         self.d_day_icon.pack(side="left")
@@ -329,13 +329,13 @@ class ItemAdjustmentPage:
         self.status_frame = tk.Frame(self.right_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
         self.status_frame.pack(side="top", fill='x', pady=3)
         if self.item_data['status'] == "신선":
-            status_photo = label_img_load("img/fresh.png")            # 이미지
+            status_photo = label_img_load("../img/fresh.png")            # 이미지
             fg_color = 'green'
         elif self.item_data['status'] == "임박":
-            status_photo = label_img_load("img/warning.png")            # 이미지
+            status_photo = label_img_load("../img/warning.png")            # 이미지
             fg_color = 'orange'
         elif self.item_data['status'] == "만료":
-            status_photo = label_img_load("img/expired.png")            # 이미지
+            status_photo = label_img_load("../img/expired.png")            # 이미지
             fg_color = 'red'
 
 

@@ -54,7 +54,7 @@ class HomePage(tk.Frame):
 
     def warning_status_img(self):
         try: 
-            img = Image.open('img/warning3.png')
+            img = Image.open('../img/warning3.png')
             img = img.resize((100,100))
             photo = ImageTk.PhotoImage(img)
         except Exception as e:
