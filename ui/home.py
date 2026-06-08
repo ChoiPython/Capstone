@@ -6,6 +6,8 @@ import cv2
 from tkinter import messagebox  
 from smart_fridge_ocr import process_frame_for_date  
 from yolov8 import detect_food_category            
+from picamera2 import Picamera2
+from libcamera import controls
 
 # [추가] 상위 폴더의 AI 스크립트 접근을 위한 경로 설정
 import os
@@ -170,10 +172,20 @@ class HomePage(tk.Frame):
 
     # 🔥 [새로 추가] 홈 화면용 카메라 스캔 및 AI 연동 마스터 함수
     def scan_event(self):
-        # 1. OpenCV 카메라 열기
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            messagebox.showerror("카메라 오류", "카메라를 열 수 없습니다.")
+        # 1. 라즈베리파이 5 전용 Picamera2 열기
+        try:
+            picam2 = Picamera2()
+            config = picam2.create_preview_configuration(main={"size": (640, 480), "format": "BGR888"})
+            picam2.configure(config)
+            picam2.start()
+            
+            # 자동 초점 모드 켜기
+            try:
+                picam2.set_controls({"AfMode": controls.AfModeEnum.Continuous})
+            except:
+                pass
+        except Exception as e:
+            messagebox.showerror("카메라 오류", f"카메라를 열 수 없습니다:\n{e}")
             return
 
         messagebox.showinfo("스캔 시작", "카메라 창이 열리면 유통기한을 초록색 사각형에 맞추고 'C' 키를 누르세요.")
@@ -181,51 +193,52 @@ class HomePage(tk.Frame):
         found_date = None
         detected_category = "Unknown"
         captured_frame = None
+        key = 0 # key 변수 초기화
 
-        key=-1
+        try:
+            while True:
+                # 2. cv2.VideoCapture 대신 picam2에서 프레임 가져오기
+                frame = picam2.capture_array()
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+                h, w, _ = frame.shape
+                # 가이드 박스 크기 및 위치 정의
+                box_width, box_height = 300, 100
+                x1 = (w - box_width) // 2
+                y1 = (h - box_height) // 2
+                x2 = x1 + box_width
+                y2 = y1 + box_height
 
-            h, w, _ = frame.shape
-            # 가이드 박스 크기 및 위치 정의 (smart_fridge_ocr.py 기준 스펙과 동일)
-            box_width, box_height = 300, 100
-            x1 = (w - box_width) // 2
-            y1 = (h - box_height) // 2
-            x2 = x1 + box_width
-            y2 = y1 + box_height
+                # 사용자 안내용 화면 가이드라인 그리기
+                display_frame = frame.copy()
+                cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(display_frame, "Align Date & Press 'C'", (x1, y1 - 10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-            # 사용자 안내용 화면 가이드라인 그리기
-            display_frame = frame.copy()
-            cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(display_frame, "Align Date & Press 'C'", (x1, y1 - 10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                cv2.imshow('Smart Fridge - Scanning', display_frame)
 
-            cv2.imshow('Smart Fridge - Home Scanning', display_frame)
-
-            key = cv2.waitKey(1) & 0xFF
-            
-            # 'c' 키를 누르면 고정 및 캡처 분석 시작
-            if key == ord('c'):
-                captured_frame = frame
-                roi = frame[y1:y2, x1:x2] # 유통기한 글자 영역 추출
+                key = cv2.waitKey(1) & 0xFF
                 
-                # 💡 [모델 연동 1] OCR 분석 (유통기한 추출)
-                found_date = process_frame_for_date(roi)
-                
-                # 💡 [모델 연동 2] YOLOv8 분석 (식품 카테고리 추출)
-                detected_category = detect_food_category(frame, model_path="best.pt")
-                break
-                
-            elif key == 27: # ESC 누르면 스캔 취소
-                break
+                # 'c' 키를 누르면 고정 및 캡처 분석 시작
+                if key == ord('c'):
+                    captured_frame = frame
+                    roi = frame[y1:y2, x1:x2] # 유통기한 글자 영역 추출
+                    
+                    # 💡 [모델 연동 1] OCR 분석
+                    found_date = process_frame_for_date(roi)
+                    
+                    # 💡 [모델 연동 2] YOLOv8 분석
+                    detected_category = detect_food_category(frame, model_path="best.pt")
+                    break
+                    
+                elif key == 27: # ESC 누르면 스캔 취소
+                    break
 
-        cap.release()
-        cv2.destroyAllWindows()
+        finally:
+            # 3. 루프가 끝나면 카메라 메모리 안전하게 해제
+            picam2.stop()
+            cv2.destroyAllWindows()
 
-        # 3. 데이터 인식을 성공적으로 마치고 값이 들어왔을 때 처리
+        # 4. 데이터 인식을 성공적으로 마치고 값이 들어왔을 때 처리 로직
         if found_date and captured_frame is not None:
             try:
                 today = datetime.now().date()
@@ -245,7 +258,7 @@ class HomePage(tk.Frame):
             # 새 물품 ID 계산
             new_id = max([item['id'] for item in self.items]) + 1 if self.items else 1
             
-            # 💡 [연동 3] 공유 데이터 명세에 맞춘 새 아이템 생성
+            # 공유 데이터 명세에 맞춘 새 아이템 생성
             new_item = {
                 'id': new_id,
                 'name': f"스캔된 {detected_category}_{new_id}",
@@ -258,38 +271,39 @@ class HomePage(tk.Frame):
                 'd_day': f"D-{days_left}" if days_left >= 0 else f"D+{abs(days_left)}"
             }
 
-            # 💡 [연동 4] 최상위 shared_items 데이터 리스트에 추가 
             self.items.append(new_item)
 
-            # 💡 [연동 5] 현재 홈 화면 대시보드의 숫자 카운트 및 UI 레이아웃 리프레시
-            # 대시보드 카운트 변수들 재계산
-            self.total_count = len(self.items)
-            self.warning_count = len([i for i in self.items if i['status'] == '주의' or i['status'] == '임박'])
-            self.expired_count = len([i for i in self.items if i['status'] == '만료'])
-
-            # 홈 화면 뼈대(위젯들)를 싹 지우고 생성자 함수들 재호출하여 새로고침 효과 구현
-            for widget in self.winfo_children():
-                widget.destroy()
-                
-            # 홈 UI 구성 요소 재호출 (화면 새로 갱신)
-            self.item_count_frame()     
-            self.warning_status_img()   
-            self.warning_status_label() 
-            self.total_item_label()     
-            self.exp_item_label()       
-            self.expired_item_label()   
+            # --- 이 부분은 home.py와 inventory.py의 UI 갱신 로직에 맞게 그대로 둡니다 ---
+            # (여기는 올려주신 기존 코드의 ui 새로고침 부분과 동일하게 유지하시면 됩니다)
             
-            self.inventory_list_frame()     
-            self.inventory_item_frame()     
-            
-            # 새 데이터가 반영된 상위 4개 요약 아이템 다시 그리기
-            for item in self.items[:4]:
-                self.inventory_items(item)
-                
-            self.camera_btn_frame()
-            self.camera_btn()
+            # [예시: home.py의 경우]
+            if hasattr(self, 'total_count'): # 홈 화면인지 인벤토리 화면인지 구분
+                self.total_count = len(self.items)
+                self.warning_count = len([i for i in self.items if i['status'] == '주의' or i['status'] == '임박'])
+                self.expired_count = len([i for i in self.items if i['status'] == '만료'])
 
-            messagebox.showinfo("성공", f"홈 화면에 새로운 물품이 등록되었습니다!\n카테고리: {detected_category}\n유통기한: {found_date}")
+                for widget in self.winfo_children():
+                    widget.destroy()
+                    
+                self.item_count_frame()     
+                self.warning_status_img()   
+                self.warning_status_label() 
+                self.total_item_label()     
+                self.exp_item_label()       
+                self.expired_item_label()   
+                self.inventory_list_frame()     
+                self.inventory_item_frame()     
+                for item in self.items[:4]:
+                    self.inventory_items(item)
+                self.camera_btn_frame()
+                self.camera_btn()
+            else:
+                # [예시: inventory.py의 경우]
+                for widget in self.grid_f.winfo_children():
+                    widget.destroy()
+                self.items_grid(self.items)
+
+            messagebox.showinfo("성공", f"새로운 물품이 등록되었습니다!\n카테고리: {detected_category}\n유통기한: {found_date}")
         else:
             if key != 27:
                 messagebox.showwarning("인식 실패", "유통기한 날짜를 명확히 인식하지 못했습니다. 다시 시도해 주세요.")
