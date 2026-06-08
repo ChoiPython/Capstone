@@ -109,7 +109,7 @@ class HomePage(tk.Frame):
         each_item_f.pack_propagate(0)
         # 이미지는 일단 우유 이미지로 고정, 나중에 데이터에 맞는 이미지로 변경해야할듯
         try: 
-            img = Image.open('img/milk.png')
+            img = Image.open('../img/milk.png')
             img = img.resize((200,150))
             photo = ImageTk.PhotoImage(img)
         except Exception as e:
@@ -181,6 +181,8 @@ class HomePage(tk.Frame):
         found_date = None
         detected_category = "Unknown"
         captured_frame = None
+
+        key=-1
 
         while True:
             ret, frame = cap.read()

@@ -406,7 +406,8 @@ class InventoryPage(tk.Frame):
         found_date = None
         detected_category = "Unknown"
         captured_frame = None
-
+        key=-1
+        
         while True:
             ret, frame = cap.read()
             if not ret:
