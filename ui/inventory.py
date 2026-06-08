@@ -10,6 +10,17 @@ from PIL import Image, ImageTk
 from tkinter import ttk
 from datetime import datetime
 from detailed_item import DetailedItemPage
+
+import os
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+# 상위 폴더 모듈 정상 임포트
+from smart_fridge_ocr import process_frame_for_date  
+from yolov8 import detect_food_category
+
 '''
 정렬 부분을 구현해야하는데 뭐를 기준으로 정렬해야하는지가 의문.
 각 부분마다 정렬하자는 민간인의 의견이 있었음

@@ -7,6 +7,16 @@ from tkinter import messagebox
 from smart_fridge_ocr import process_frame_for_date  
 from yolov8 import detect_food_category            
 
+# [추가] 상위 폴더의 AI 스크립트 접근을 위한 경로 설정
+import os
+import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+# 이제 상위 폴더에 있는 모듈을 정상적으로 import 할 수 있습니다.
+from smart_fridge_ocr import process_frame_for_date  
+from yolov8 import detect_food_category
 
 class HomePage(tk.Frame):
     def __init__(self, parent, main_ui, items):
