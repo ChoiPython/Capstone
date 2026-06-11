@@ -1,6 +1,7 @@
 import tkinter as tk
 from PIL import Image, ImageTk
 from datetime import datetime
+from item_reg import ItemRegPage
 
 import cv2  
 from tkinter import messagebox  
@@ -181,7 +182,7 @@ class HomePage(tk.Frame):
         self.camera_btn_f.pack_propagate(0)
 
     def camera_btn(self):
-        self.scan_btn = tk.Button(self.camera_btn_f, text="유통기한 스캔하기!", bg="#05A66B", fg="white", font=("Arial", 16, "bold"), width=100, height=4, command=self.camera_btn_event)
+        self.scan_btn = tk.Button(self.camera_btn_f, text="유통기한 스캔하기!", bg="#05A66B", fg="white", font=("Arial", 16, "bold"), width=100, height=4, command=self.camera_btn)
         self.scan_btn.pack(pady=20)
 
     def camera_btn_frame(self):
@@ -209,62 +210,88 @@ class HomePage(tk.Frame):
 
     # 스캔 이벤트 함수
     def scan_event(self):
-        messagebox.showinfo("스캔 시작", "카메라 창이 열리면 유통기한을 맞추고 'c'를 누르세요.\n취소하려면 CLOSE버튼을 눌러주세요.")
-
-        # 💡 [연결] 카메라를 켜고, X버튼/스캔/종료 처리를 모두 위임합니다.
-        result = run_camera_scan()
-
-        # result가 None이라는 건 유저가 'X'를 눌렀거나 'q'를 눌러 취소한 경우입니다.
-        if result is None:
-            messagebox.showwarning("스캔 취소", "유통기한 스캔이 취소되었습니다.")
+        # 💡 [핵심 1] 중복 실행 방지 (더블 클릭 차단)
+        # 이미 스캔이 진행 중이라면 버튼을 또 눌러도 무시합니다.
+        if getattr(self, 'is_scanning', False):
+            print("이미 스캔이 진행 중입니다.")
             return
-
-        # 자동 스캔이 성공해서 데이터를 가지고 돌아온 경우
-        found_date, detected_category = result
-
-        # --- 아래는 기존 데이터 추가 및 UI 새로고침 로직 (그대로 유지) ---
-        try:
-            today = datetime.now().date()
-            exp_date = datetime.strptime(found_date, "%Y-%m-%d").date()
-            days_left = (exp_date - today).days
-            status = "만료" if days_left < 0 else "임박" if days_left <= 3 else "신선"
-        except:
-            days_left = 0
-            status = "신선"
-
-        new_id = max([item['id'] for item in self.items]) + 1 if self.items else 1
-        new_item = {
-            'id': new_id,
-            'name': f"스캔된 {detected_category}_{new_id}",
-            'category': detected_category,
-            'quantity': 1,
-            'unit': '개',
-            'expiry_date': found_date,
-            'status': status,
-            'added_date': today.strftime("%Y-%m-%d"),
-            'd_day': f"D-{days_left}" if days_left >= 0 else f"D+{abs(days_left)}"
-        }
-        self.items.append(new_item)
-
-        # 홈 화면 새로고침 UI 갱신
-        self.total_count = len(self.items)
-        self.warning_count = len([i for i in self.items if i['status'] in ['주의', '임박']])
-        self.expired_count = len([i for i in self.items if i['status'] == '만료'])
-
-        for widget in self.winfo_children():
-            widget.destroy()
             
-        self.item_count_frame()     
-        self.warning_status_img()   
-        self.warning_status_label() 
-        self.total_item_label()     
-        self.exp_item_label()       
-        self.expired_item_label()   
-        self.inventory_list_frame()     
-        self.inventory_item_frame()     
-        for item in self.items[:4]:
-            self.inventory_items(item)
-        self.camera_btn_frame()
-        self.camera_btn()
+        self.is_scanning = True # 스캔 시작 상태로 잠금
 
-        messagebox.showinfo("성공", f"새로운 물품이 등록되었습니다!\n\n카테고리: {detected_category}\n유통기한: {found_date}")
+        try:
+            messagebox.showinfo("스캔 시작", "카메라 창이 열리면 유통기한을 맞추고 기다려주세요.\n취소하려면 CLOSE버튼을 눌러주세요.")
+
+            # 💡 [핵심 2] 변경된 리턴 값 3개(날짜, 카테고리, 이미지경로)를 받음
+            result = run_camera_scan()
+
+            # 취소(CLOSE 버튼이나 q키) 처리 로직 수정
+            # result가 (None, None, None)으로 반환되므로 조건문을 수정해야 합니다.
+            if result == (None, None, None) or result[0] is None:
+                messagebox.showwarning("스캔 취소", "유통기한 스캔이 취소되었습니다.")
+                return
+
+            # 정상적으로 데이터를 가지고 돌아온 경우 언패킹
+            found_date, detected_category, saved_img_path = result
+
+            # --- 아래는 기존 데이터 추가 및 UI 새로고침 로직 ---
+            try:
+                today = datetime.now().date()
+                exp_date = datetime.strptime(found_date, "%Y-%m-%d").date()
+                days_left = (exp_date - today).days
+                status = "만료" if days_left < 0 else "임박" if days_left <= 3 else "신선"
+            except:
+                days_left = 0
+                status = "신선"
+
+            new_id = max([item['id'] for item in self.items]) + 1 if self.items else 1
+            new_item = {
+                'id': new_id,
+                'name': f"스캔된 {detected_category}_{new_id}",
+                'category': detected_category,
+                'quantity': 1,
+                'unit': '개',
+                'expiry_date': found_date,
+                'status': status,
+                'added_date': today.strftime("%Y-%m-%d"),
+                'd_day': f"D-{days_left}" if days_left >= 0 else f"D+{abs(days_left)}",
+                'image_path': saved_img_path  # 💡 [추가] 기왕 저장한 사진 경로도 DB에 함께 기록해둡니다!
+            }
+            
+
+
+            # 홈 화면 새로고침 UI 갱신
+            self.total_count = len(self.items)
+            self.warning_count = len([i for i in self.items if i['status'] in ['주의', '임박']])
+            self.expired_count = len([i for i in self.items if i['status'] == '만료'])
+
+            for widget in self.winfo_children():
+                widget.destroy()
+                
+            self.item_count_frame()    
+            self.warning_status_img()   
+            self.warning_status_label() 
+            self.total_item_label()     
+            self.exp_item_label()       
+            self.expired_item_label()   
+            self.inventory_list_frame()     
+            self.inventory_item_frame()     
+            for item in self.items[:4]:
+                self.inventory_items(item)
+            self.camera_btn_frame()
+            self.camera_btn()
+    
+            # 등록햇습니다 말고 저장화면불렁기
+            messagebox.showinfo("성공", f"새로운 물품이 등록되었습니다!\n\n카테고리: {detected_category}\n유통기한: {found_date}")
+            
+            # item_reg 페이지로 이동하면서 새로 등록된 아이템의 ID를 전달하여 상세 정보 페이지로 바로 이동할 수 있도록 합니다.
+            self.item_reg = ItemRegPage(self.winfo_toplevel(), new_item)
+                
+            itemreg_win = self.item_reg.window
+            itemreg_win.transient(self.winfo_toplevel())  
+            itemreg_win.wait_visibility()
+            itemreg_win.grab_set()
+
+
+        finally:
+            # 💡 [핵심 1] 스캔이 완전히 끝나거나 취소되면 다시 버튼을 누를 수 있도록 잠금 해제
+            self.is_scanning = False

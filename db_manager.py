@@ -30,6 +30,11 @@ def create_table():
             category_id INTEGER REFERENCES categories(id),
             exp_date TEXT NOT NULL,
             reg_date TEXT DEFAULT (datetime('now', 'localtime')),
+            quentity INTEGER DEFAULT 1,
+            unit TEXT DEFAULT '개',
+            status TEXT DEFAULT '신선',
+            Dday VARCHAR(10) DEFAULT "D-99",
+            img_path TEXT DEFAULT "../img/milk.png",
             memo TEXT
         )
     """)
@@ -60,22 +65,51 @@ def get_or_create_category(name: str) -> int:
 
     conn.close()
     return category_id
+#데이터 수정
+def update_item(item_id: int, name: str, category_name: str, quantity: float, exp_date: str, status: str, d_day: str) -> bool:
+    """
+    주어진 식재료 ID의 데이터를 새로운 정보로 업데이트합니다.
+    카테고리 이름이 바뀌었다면 자동으로 조회 및 생성하여 외래키를 맞춥니다.
+    """
+    try:
+        # 1. 텍스트 카테고리를 ID로 변환 (없으면 자동 등록됨)
+        category_id = get_or_create_category(category_name)
+
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        # 2. ingredients 테이블의 정보를 업데이트
+        cur.execute("""
+            UPDATE ingredients 
+            SET name = ?, 
+                category_id = ?, 
+                quentity = ?, 
+                exp_date = ?, 
+                status = ?, 
+                Dday = ?
+            WHERE id = ?
+        """, (name, category_id, quantity, exp_date, status, d_day, item_id))
+        
+        conn.commit()
+        conn.close()
+        print(f"[DB 수정 완료] ID={item_id} | 이름={name} | 카테고리={category_name}(id={category_id})")
+        return True
+
+    except Exception as e:
+        print(f"[DB 수정 실패] {e}")
+        return False
 
 # 4. 데이터 추가 (식재료 등록) - category_id FK 방식
-def insert_item(name: str, category_name: str, exp_date: str, memo: str = "") -> bool:
-    """
-    식재료를 DB에 저장.
-    category_name → categories 테이블에서 id 조회 후 FK로 저장.
-    반환값: 성공 True / 실패 False
-    """
+def insert_item(id: int,name: str, category_name: str, exp_date: str, memo: str = "") -> bool:
+
     try:
         category_id = get_or_create_category(category_name)
 
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO ingredients (name, category_id, exp_date, memo) VALUES (?, ?, ?, ?)",
-            (name, category_id, exp_date, memo)
+            "INSERT INTO ingredients (id, name, category_id, exp_date, memo) VALUES (?, ?, ?, ?, ?)",
+            (id, name, category_id, exp_date, memo)
         )
         conn.commit()
         conn.close()

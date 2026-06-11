@@ -131,7 +131,7 @@ class InventoryPage(tk.Frame):
         self.grid_f.destroy()  # 기존 그리드 프레임 제거
         self.camera_btn_f.destroy()  # 기존 카메라 버튼 프레임 제거
         self.inventory_list_frame()  # 새로운 인벤토리 리스트 프레임 생성
-        self.camera_btn_frame()  # 새로운 카메라 버튼 프레임 생성
+        self.camera_btn_frame()  # 새로운 카메라 버f튼 프레임 생성
         self.camera_btn()  # 새로운 카메라 버튼 생성
 
     def inventory_list_frame(self):
@@ -239,7 +239,6 @@ class InventoryPage(tk.Frame):
 
 
 
-        # D-DAY 계산하여 items 리스트에 추가하기    - 나중에 db안에 d_day 데이터가 있으면 이건 필요없긴한데.. 봐야할듯 찍을 때 계산하긴 하니깐..
         for i in range(len(items)):
             expiry_date = items[i]['expiry_date']
             # D-DAY 계산 로직

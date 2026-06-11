@@ -3,71 +3,68 @@ import os
 import time
 from ultralytics import YOLO
 
-# =================================================================
-# [3] YOLOv8 기반 스마트 냉장고 6대 카테고리 탐지 & 이미지 저장 함수
-# =================================================================
-def detect_food_category(frame, model_path="best.pt", save_dir="captured_images"):
-    """
-    카메라 프레임을 받아 학습된 YOLOv8 모델로 카테고리를 탐지하고,
-    해당 물체 영역(박스)만 잘라내어 이미지로 저장한 뒤 
-    (클래스명, 저장된_이미지_경로)를 반환하는 함수
-    """
-    # 1. 이미지를 저장할 폴더가 없으면 자동 생성
+# 무거운 모델을 매 프레임 로드하지 않고 재사용하기 위한 전역 변수
+_yolo_model = None
+
+def detect_food_category(frame, model_path="/home/oldmans/smart_fridge_ver1/best.pt", save_dir="captured_images"):
+    global _yolo_model
+
+    # 1. 모델이 없으면 최초 1회만 기동 (렉 방지 핵심)
+    if _yolo_model is None:
+        print(f"⏳ [YOLO] 모델({model_path})을 최초 로드합니다...")
+        try:
+            _yolo_model = YOLO(model_path)
+            print("✅ [YOLO] 모델 로드가 완료되었습니다.")
+        except Exception as e:
+            print(f"❌ [YOLO] 모델 로드 실패: {e}")
+            return None, None
+
+    # 2. 크롭 이미지를 저장할 폴더 자동 생성
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
     try:
-        model = YOLO(model_path)
-        results = model(frame, stream=True, verbose=False)
+        # stream=True로 연산 속도 최적화
+        results = _yolo_model(frame, stream=True, verbose=False)
         
         highest_conf = 0.0
-        detected_class_name = "etc"
-        best_box_coords = None  # 가장 신뢰도가 높은 물체의 좌표 저장용
+        detected_class_name = None
+        best_box_coords = None  
         
-        # 2. 탐지된 결과 분석
         for r in results:
-            boxes = r.boxes
-            for box in boxes:
+            for box in r.boxes:
                 conf = float(box.conf[0])
+                # 확신도(Confidence)가 가장 높은 물체를 탐지
                 if conf > highest_conf:
                     highest_conf = conf
                     class_id = int(box.cls[0])
-                    detected_class_name = model.names[class_id]
-                    # 바운딩 박스 좌표 추출 [x1, y1, x2, y2]
+                    detected_class_name = _yolo_model.names[class_id]
                     best_box_coords = box.xyxy[0].cpu().numpy()
         
-        # 고유한 파일명 생성을 위해 현재 시간을 활용
-        timestamp = int(time.time())
-        saved_img_path = os.path.join(save_dir, f"item_{timestamp}.jpg")
-        
-        # 3. 확신할 수 있는 물체가 발견되었을 때 (이미지 크롭)
+        # 3. 신뢰도가 40% 이상인 진짜 물체를 찾은 경우 이미지 크롭 및 저장
         if highest_conf >= 0.40 and best_box_coords is not None:
-            print(f"🎯 YOLO 탐지 성공: {detected_class_name} (신뢰도: {highest_conf*100:.1f}%)")
+            # 파일명이 중복되지 않도록 현재 타임스탬프 밀리초 사용
+            timestamp = int(time.time() * 1000)
+            saved_img_path = os.path.join(save_dir, f"item_{timestamp}.jpg")
             
-            # 박스 좌표를 정수형으로 변환
             x1, y1, x2, y2 = map(int, best_box_coords)
-            
-            # 혹시 모를 에러(박스가 화면 밖으로 나감) 방지를 위해 좌표를 화면 크기 내로 제한
             h, w, _ = frame.shape
+            
+            # 프레임 경계 밖을 넘어가지 않도록 방어 코드 추가
             x1, y1 = max(0, x1), max(0, y1)
             x2, y2 = min(w, x2), min(h, y2)
             
-            # 프레임에서 해당 박스 영역만 잘라내기 (Crop)
+            # 사각형 영역만큼 크롭
             cropped_img = frame[y1:y2, x1:x2]
             
-            # 잘라낸 이미지 저장
-            cv2.imwrite(saved_img_path, cropped_img)
-            print(f"📸 인식된 물체 크롭 이미지 저장 완료: {saved_img_path}")
+            # 크롭된 이미지 파일 저장
+            if cropped_img.size > 0:
+                cv2.imwrite(saved_img_path, cropped_img)
+                print(f"🎯 [YOLO] 물체 포착: {detected_class_name} ({highest_conf*100:.1f}%) -> 저장 완료: {saved_img_path}")
+                return detected_class_name, saved_img_path
             
-            return detected_class_name, saved_img_path
-            
-        # 4. 확신할 수 없거나 아무것도 못 찾았을 때 (원본 프레임 저장)
-        else:
-            print("❓ YOLO 탐지 결과: 확실하게 판별할 수 없어 원본을 저장합니다. (etc)")
-            # 자르지 않고 원본 프레임을 그대로 저장
-            cv2.imwrite(saved_img_path, frame)
-            return "etc", saved_img_path
+        return None, None
             
     except Exception as e:
-        print(f"❌ YOLO 실행 중 오류 발생: {e}")
-        return "etc", None
+        print(f"❌ YOLO 연산 에러: {e}")
+        return None, None

@@ -1,18 +1,22 @@
-[Raspberry Pi 5 Picamera2 module initializing...
-[0:03:40.095026391] [2928]  INFO Camera camera_manager.cpp:340 libcamera v0.7.1+rpt20260429
-[0:03:40.111005121] [2972]  INFO RPI pisp.cpp:720 libpisp version v1.5.0 01-05-2026 (05:33:53)
-[0:03:40.125312074] [2972]  INFO IPAProxy ipa_proxy.cpp:184 Using tuning file /usr/share/libcamera/ipa/rpi/pisp/imx708.json
-[0:03:40.135563086] [2972]  INFO Camera camera_manager.cpp:223 Adding camera '/base/axi/pcie@1000120000/rp1/i2c@88000/imx708@1a' for pipeline handler rpi/pisp
-[0:03:40.135609475] [2972]  INFO RPI pisp.cpp:1181 Registered camera /base/axi/pcie@1000120000/rp1/i2c@88000/imx708@1a to CFE device /dev/media0 and ISP device /dev/media2 using PiSP variant BCM2712_D0
-[0:03:40.141811304] [2972]  WARN V4L2 v4l2_pixelformat.cpp:346 Unsupported V4L2 pixel format Nc30
-[0:03:40.141845822] [2972]  WARN V4L2 v4l2_pixelformat.cpp:346 Unsupported V4L2 pixel format Nc12
-[0:03:40.142558081] [2928]  INFO Camera camera.cpp:1216 configuring streams: (0) 640x480-BGR888/sRGB (1) 1536x864-BGGR_PISP_COMP1/RAW
-[0:03:40.142686025] [2972]  INFO RPI pisp.cpp:1485 Sensor: /base/axi/pcie@1000120000/rp1/i2c@88000/imx708@1a - Selected sensor format: 1536x864-SBGGR10_1X10/RAW - Selected CFE format: 1536x864-PC1B/RAW
-QFontDatabase: Cannot find font directory /home/oldmans/env/lib/python3.13/site-packages/cv2/qt/fonts.
-Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
-QFontDatabase: Cannot find font directory /home/oldmans/env/lib/python3.13/site-packages/cv2/qt/fonts.
-Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
-QFontDatabase: Cannot find font directory /home/oldmans/env/lib/python3.13/site-packages/cv2/qt/fonts.
-Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
-QFontDatabase: Cannot find font directory /home/oldmans/env/lib/python3.13/site-packages/cv2/qt/fonts.
-Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/picamera2/picamera2.py", line 356, in __init__
+    self._open_camera()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3/dist-packages/picamera2/picamera2.py", line 574, in _open_camera
+    self.camera.acquire()
+    ~~~~~~~~~~~~~~~~~~~^^
+RuntimeError: Failed to acquire camera: Device or resource busy
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3.13/tkinter/__init__.py", line 2071, in __call__
+    return self.func(*args)
+           ~~~~~~~~~^^^^^^^
+  File "/home/oldmans/smart_fridge_ver1/ui/home.py", line 215, in scan_event
+    result = run_camera_scan()
+  File "/home/oldmans/smart_fridge_ver1/smart_fridge_ocr.py", line 116, in run_camera_scan
+    picam2 = Picamera2()
+  File "/usr/lib/python3/dist-packages/picamera2/picamera2.py", line 368, in __init__
+    raise RuntimeError("Camera __init__ sequence did not complete.") from e
+RuntimeError: Camera __init__ sequence did not complete.
