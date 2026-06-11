@@ -1,10 +1,7 @@
 # 기존 임포트 아래에 추가
 import cv2
-from smart_fridge_ocr import process_frame_for_date  # 유통기한 추출 함수
-from yolov8 import detect_food_category            # YOLO 음식 카테고리 인식 함수
 from tkinter import messagebox
-from picamera2 import Picamera2
-from libcamera import controls
+
 # import dtable  # 필요한 경우 d-day 계산이나 날짜 모듈 임포트
 
 import tkinter as tk
@@ -19,9 +16,8 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-# 상위 폴더 모듈 정상 임포트
-from smart_fridge_ocr import process_frame_for_date  
-from yolov8 import detect_food_category
+from smart_fridge_ocr import run_camera_scan
+
 
 '''
 정렬 부분을 구현해야하는데 뭐를 기준으로 정렬해야하는지가 의문.
@@ -118,8 +114,9 @@ class InventoryPage(tk.Frame):
             if cate == "전체":
                 print("전체 카테고리 선택됨")
                 # 지금 이렇게 하면 db가 없는 상태에선 변경된 데이터가 초기화 됨.
-                self.main_ui.show_page("inventory", "전체")  # 전체보기 버튼 클릭 시 전체 인벤토리 페이지로 이동 - 전체화면을 보여주는 더 좋은 코드가 있지 않을까 생각함..
-
+                self.destroy_frames_and_create()                # 기존 프레임 제거
+                self.items_grid(self.items)          # 인벤토리 리스트 안에 표 생성
+                qq
             elif cate == "음식":
                 print("음식 카테고리 선택됨")
                 items = [item for item in self.items if item['category'] == cate]
@@ -371,160 +368,84 @@ class InventoryPage(tk.Frame):
                 detailed_win.grab_set()
                 
 
-    def camera_btn_frame(self):
-        self.camera_btn_f = tk.Frame(self, width=1000, height=130, bg=self.bg_color, bd=1, relief="solid")
-        self.camera_btn_f.pack(fill="x")
+    def camera_btn_frame(self): 
+        # 1. 부모 프레임 높이를 200으로 늘려 공간 확보
+        self.camera_btn_f = tk.Frame(self, width=1000, height=200, bg=self.bg_color, bd=1, relief="solid")
+        self.camera_btn_f.pack(fill="x", pady=10)
         self.camera_btn_f.pack_propagate(0)
 
     def camera_btn(self):
-        self.scan_btn = tk.Button(self.camera_btn_f, text="유통기한 스캔하기!", bg="#05A66B", fg="white", font=("Arial", 16, "bold"), width=60, height=2, command=self.camera_btn_event)
-        self.scan_btn.pack(pady=20)
-
-    def camera_btn(self):
-        # 💡 버튼 생성 및 이벤트 바인딩
+        # 2. 폰트 크기와 가로/세로 글자 비율 늘리기
         self.scan_btn = tk.Button(
             self.camera_btn_f, 
             text="유통기한 스캔하기", 
+            command=self.scan_event,
+            font=("Arial", 18, "bold"),       # 💡 폰트 확대
             bg="#05a66b", 
-            fg="white", 
-            font=("Arial", 14, "bold"),
-            command=self.scan_event # 🔥 스캔 이벤트 함수 연결
+            fg="white",
+            width=25,                        # 💡 너비 확대
+            height=2                         # 💡 높이 확대
         )
-        self.scan_btn.pack(pady=40)
+        # 3. 중앙 배치 및 여백 적용
+        self.scan_btn.pack(expand=True, pady=20)
 
     def scan_event(self):
-        # 1. 라즈베리파이 5 전용 Picamera2 열기
-        try:
-            picam2 = Picamera2()
-            config = picam2.create_preview_configuration(main={"size": (640, 480), "format": "BGR888"})
-            picam2.configure(config)
-            picam2.start()
-            
-            # 자동 초점 모드 켜기
-            try:
-                picam2.set_controls({"AfMode": controls.AfModeEnum.Continuous})
-            except:
-                pass
-        except Exception as e:
-            messagebox.showerror("카메라 오류", f"카메라를 열 수 없습니다:\n{e}")
+        messagebox.showinfo("스캔 시작", "카메라 창이 열리면 유통기한을 맞추고 'c'를 누르세요.\n취소하려면 CLOSE버튼을 눌러주세요.")
+
+        # 💡 [연결] 카메라를 켜고, X버튼/스캔/종료 처리를 모두 위임합니다.
+        result = run_camera_scan()
+
+        # result가 None이라는 건 유저가 'X'를 눌렀거나 'q'를 눌러 취소한 경우입니다.
+        if result is None:
+            messagebox.showwarning("스캔 취소", "유통기한 스캔이 취소되었습니다.")
             return
 
-        messagebox.showinfo("스캔 시작", "카메라 창이 열리면 유통기한을 초록색 사각형에 맞추고 'C' 키를 누르세요.")
+        # 자동 스캔이 성공해서 데이터를 가지고 돌아온 경우
+        found_date, detected_category = result
 
-        found_date = None
-        detected_category = "Unknown"
-        captured_frame = None
-        key = 0 # key 변수 초기화
-
+        # --- 아래는 기존 데이터 추가 및 UI 새로고침 로직 (그대로 유지) ---
         try:
-            while True:
-                # 2. cv2.VideoCapture 대신 picam2에서 프레임 가져오기
-                frame = picam2.capture_array()
+            today = datetime.now().date()
+            exp_date = datetime.strptime(found_date, "%Y-%m-%d").date()
+            days_left = (exp_date - today).days
+            status = "만료" if days_left < 0 else "임박" if days_left <= 3 else "신선"
+        except:
+            days_left = 0
+            status = "신선"
 
-                h, w, _ = frame.shape
-                # 가이드 박스 크기 및 위치 정의
-                box_width, box_height = 300, 100
-                x1 = (w - box_width) // 2
-                y1 = (h - box_height) // 2
-                x2 = x1 + box_width
-                y2 = y1 + box_height
+        new_id = max([item['id'] for item in self.items]) + 1 if self.items else 1
+        new_item = {
+            'id': new_id,
+            'name': f"스캔된 {detected_category}_{new_id}",
+            'category': detected_category,
+            'quantity': 1,
+            'unit': '개',
+            'expiry_date': found_date,
+            'status': status,
+            'added_date': today.strftime("%Y-%m-%d"),
+            'd_day': f"D-{days_left}" if days_left >= 0 else f"D+{abs(days_left)}"
+        }
+        self.items.append(new_item)
 
-                # 사용자 안내용 화면 가이드라인 그리기
-                display_frame = frame.copy()
-                cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(display_frame, "Align Date & Press 'C'", (x1, y1 - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        # 홈 화면 새로고침 UI 갱신
+        self.total_count = len(self.items)
+        self.warning_count = len([i for i in self.items if i['status'] in ['주의', '임박']])
+        self.expired_count = len([i for i in self.items if i['status'] == '만료'])
 
-                cv2.imshow('Smart Fridge - Scanning', display_frame)
-
-                key = cv2.waitKey(1) & 0xFF
-                
-                # 'c' 키를 누르면 고정 및 캡처 분석 시작
-                if key == ord('c'):
-                    captured_frame = frame
-                    roi = frame[y1:y2, x1:x2] # 유통기한 글자 영역 추출
-                    
-                    # 💡 [모델 연동 1] OCR 분석
-                    found_date = process_frame_for_date(roi)
-                    
-                    # 💡 [모델 연동 2] YOLOv8 분석
-                    detected_category = detect_food_category(frame, model_path="best.pt")
-                    break
-                    
-                elif key == 27: # ESC 누르면 스캔 취소
-                    break
-
-        finally:
-            # 3. 루프가 끝나면 카메라 메모리 안전하게 해제
-            picam2.stop()
-            cv2.destroyAllWindows()
-
-        # 4. 데이터 인식을 성공적으로 마치고 값이 들어왔을 때 처리 로직
-        if found_date and captured_frame is not None:
-            try:
-                today = datetime.now().date()
-                exp_date = datetime.strptime(found_date, "%Y-%m-%d").date()
-                days_left = (exp_date - today).days
-                
-                if days_left < 0:
-                    status = "만료"
-                elif days_left <= 3:
-                    status = "임박"
-                else:
-                    status = "신선"
-            except:
-                days_left = 0
-                status = "신선"
-
-            # 새 물품 ID 계산
-            new_id = max([item['id'] for item in self.items]) + 1 if self.items else 1
+        for widget in self.winfo_children():
+            widget.destroy()
             
-            # 공유 데이터 명세에 맞춘 새 아이템 생성
-            new_item = {
-                'id': new_id,
-                'name': f"스캔된 {detected_category}_{new_id}",
-                'category': detected_category,
-                'quantity': 1,
-                'unit': '개',
-                'expiry_date': found_date,
-                'status': status,
-                'added_date': today.strftime("%Y-%m-%d"),
-                'd_day': f"D-{days_left}" if days_left >= 0 else f"D+{abs(days_left)}"
-            }
+        self.item_count_frame()     
+        self.warning_status_img()   
+        self.warning_status_label() 
+        self.total_item_label()     
+        self.exp_item_label()       
+        self.expired_item_label()   
+        self.inventory_list_frame()     
+        self.inventory_item_frame()     
+        for item in self.items[:4]:
+            self.inventory_items(item)
+        self.camera_btn_frame()
+        self.camera_btn()
 
-            self.items.append(new_item)
-
-            # --- 이 부분은 home.py와 inventory.py의 UI 갱신 로직에 맞게 그대로 둡니다 ---
-            # (여기는 올려주신 기존 코드의 ui 새로고침 부분과 동일하게 유지하시면 됩니다)
-            
-            # [예시: home.py의 경우]
-            if hasattr(self, 'total_count'): # 홈 화면인지 인벤토리 화면인지 구분
-                self.total_count = len(self.items)
-                self.warning_count = len([i for i in self.items if i['status'] == '주의' or i['status'] == '임박'])
-                self.expired_count = len([i for i in self.items if i['status'] == '만료'])
-
-                for widget in self.winfo_children():
-                    widget.destroy()
-                    
-                self.item_count_frame()     
-                self.warning_status_img()   
-                self.warning_status_label() 
-                self.total_item_label()     
-                self.exp_item_label()       
-                self.expired_item_label()   
-                self.inventory_list_frame()     
-                self.inventory_item_frame()     
-                for item in self.items[:4]:
-                    self.inventory_items(item)
-                self.camera_btn_frame()
-                self.camera_btn()
-            else:
-                # [예시: inventory.py의 경우]
-                for widget in self.grid_f.winfo_children():
-                    widget.destroy()
-                self.items_grid(self.items)
-
-            messagebox.showinfo("성공", f"새로운 물품이 등록되었습니다!\n카테고리: {detected_category}\n유통기한: {found_date}")
-        else:
-            if key != 27:
-                messagebox.showwarning("인식 실패", "유통기한 날짜를 명확히 인식하지 못했습니다. 다시 시도해 주세요.")
+        messagebox.showinfo("성공", f"새로운 물품이 등록되었습니다!\n\n카테고리: {detected_category}\n유통기한: {found_date}")

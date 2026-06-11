@@ -1,0 +1,12 @@
+  File "/home/oldmans/smart_fridge_ver1/ui/main.py", line 11, in <module>
+    from ui import UI  # 같은 폴더 내 ui.py 임포트
+    ^^^^^^^^^^^^^^^^^
+  File "/home/oldmans/smart_fridge_ver1/ui/ui.py", line 3, in <module>
+    from home import HomePage  # 메인 화면 프레임 임포트
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/oldmans/smart_fridge_ver1/ui/home.py", line 15, in <module>
+    from smart_fridge_ocr import run_camera_scan
+  File "/home/oldmans/smart_fridge_ver1/smart_fridge_ocr.py", line 16
+    match = re.search(p, clean_text)import cv2
+                                    ^^^^^^
+SyntaxError: invalid syntax
