@@ -1,14 +1,15 @@
 import tkinter as tk
+from tkinter import ttk  
 from PIL import Image, ImageTk
 from tkinter import messagebox
 from tkcalendar import Calendar
+
 '''
 아이템 수정 페이지: 품명, 수량, 카테고리, 단위, 유통기한만 수정함
 카테고리 수정 -> 관련된 라벨 수정
 유통기한 수정 -> D-Dat, 상태 같이 수정
 
 수정페이지는 entery로 수정할 수 있게 함.
-
 '''
 class ItemAdjustmentPage:
     def __init__(self, master, item, on_update=None): # 이해하기 쉽도록 parent 대신 master로 명칭 변경
@@ -47,18 +48,12 @@ class ItemAdjustmentPage:
         self.control_bar_f = tk.Frame(self.window, width=600, height=70, bg=self.bg_color, bd=1, relief="solid")
         self.control_bar_f.pack(fill='x')
         self.control_bar_f.pack_propagate(0)
-        
-        # pin_btn = tk.Button(self.control_bar_f, text="고정", bg="white", font=("Arial", 12, "bold"), command=lambda: self.control_event("고정"))
-        # pin_btn.pack(side="left", padx=10, pady=10)
 
         close_btn = tk.Button(self.control_bar_f, text="취소", bg="white", font=("Arial", 12, "bold"), command=self.window.destroy)
         close_btn.pack(side="right", padx=10, pady=10)
 
         delete_btn = tk.Button(self.control_bar_f, text="저장", bg="white", font=("Arial", 12, "bold"), command=lambda: self.control_event("저장"))
         delete_btn.pack(side="right", padx=10, pady=10)
-
-        # edit_btn = tk.Button(self.control_bar_f, text="수정", bg="white", font=("Arial", 12, "bold"), command=lambda: self.control_event("수정"))
-        # edit_btn.pack(side="right", padx=10, pady=10)
 
 
     def control_event(self, action):
@@ -76,7 +71,6 @@ class ItemAdjustmentPage:
                     quantity = float(quantity)
                     print(f"수량이 소수로 입력됨: {quantity}")
 
-
             except ValueError:
                 messagebox.showerror("입력 오류", "수량은 숫자여야 합니다.")
                 return
@@ -84,7 +78,7 @@ class ItemAdjustmentPage:
             self.update_item = {
                 'id': self.item_data['id'],  # 아이디는 수정 불가
                 'name': self.item_name.get(),
-                'category': self.category_entry.get(),
+                'category': self.category_entry.get(), 
                 'quantity': quantity,
                 'unit': self.item_data['unit'],  # 단위는 수정 불가
                 'expiry_date': self.item_data['expiry_date'],  # 유통기한은 달력에서 변경하므로 여기서는 기존 데이터 유지
@@ -145,42 +139,59 @@ class ItemAdjustmentPage:
         self.left_f.pack(side="left")
         self.left_f.pack_propagate(0)
         
-        # 수량 라벨
-        self.quantity_frame = tk.Frame(self.left_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
-        self.quantity_frame.pack(side="top", fill='x', pady=15)
+        # 수량 라벨 (줄바꿈 대응을 위해 내부 간격 조절)
+        self.quantity_frame = tk.Frame(self.left_f, bg=self.bg_color)   
+        self.quantity_frame.pack(side="top", fill='x', pady=(10, 5))
 
-        quantity_photo= label_img_load("../img/quantity.png")              # 이미지
+        quantity_photo= label_img_load("../img/quantity.png")              
         self.quantity_icon = tk.Label(self.quantity_frame, image=quantity_photo, bg=self.bg_color)
         self.quantity_icon.image = quantity_photo
         self.quantity_icon.pack(side="left")
 
-        quantity_l = tk.Label(self.quantity_frame, text=f"수량:", bg=self.bg_color, font=("Arial", 12))    # 라벨
+        quantity_l = tk.Label(self.quantity_frame, text=f"수량:", bg=self.bg_color, font=("Arial", 12))    
         quantity_l.pack(side="left", padx=3)
-        # 수량 엔트리는 데이터 저장할 때 숫자인지 판단해야함.
-        self.quantity_entry = tk.Entry(self.quantity_frame, textvariable=tk.StringVar(value=self.item_data['quantity']), bg=self.bg_color, fg='black', font=("Arial", 12))
+        
+        self.quantity_entry = tk.Entry(self.quantity_frame, textvariable=tk.StringVar(value=self.item_data['quantity']), bg=self.bg_color, fg='black', font=("Arial", 12), width=6)
         self.quantity_entry.pack(side="left", padx=3)
 
-        # # 카테고리 라벨
-        self.category_frame = tk.Frame(self.left_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
-        self.category_frame.pack(side="top", fill='x', pady=15)
-        category_photo = label_img_load("../img/category.png")            # 이미지
+        # 💡 [구조 수정] 카테고리 대형 프레임
+        self.category_frame = tk.Frame(self.left_f, bg=self.bg_color)   
+        self.category_frame.pack(side="top", fill='x', pady=5)
+        
+        # 1층: 아이콘 + "카테고리:" 글자 라인
+        self.category_title_frame = tk.Frame(self.category_frame, bg=self.bg_color)
+        self.category_title_frame.pack(side="top", anchor="w")
 
-        self.category_icon = tk.Label(self.category_frame, image=category_photo, bg=self.bg_color)
+        category_photo = label_img_load("../img/category.png")            
+        self.category_icon = tk.Label(self.category_title_frame, image=category_photo, bg=self.bg_color)
         self.category_icon.image = category_photo
         self.category_icon.pack(side="left")
         
-        category_l = tk.Label(self.category_frame, text=f"카테고리:", bg=self.bg_color, font=("Arial", 12))
+        # 명칭을 '분류' -> '카테고리'로 변경 완료
+        category_l = tk.Label(self.category_title_frame, text=f"카테고리:", bg=self.bg_color, font=("Arial", 12))
         category_l.pack(side="left", padx=3)
-    
-        self.category_entry = tk.Entry(self.category_frame, textvariable=tk.StringVar(value=self.item_data['category']), bg=self.bg_color, fg='black', font=("Arial", 12))
-        self.category_entry.pack(side="left", padx=3)
+
+        # 2층: 드롭다운 리스트박스 (한 칸 밑으로 배치)
+        category_list = ["유제품 및 음료", "신선 가공식품", "냉장 육류", "소스 및 조미료", "자연 신선식품", "기타"]
+        self.category_var = tk.StringVar(value=self.item_data.get('category', '기타'))
+        
+        self.category_entry = ttk.Combobox(
+            self.category_frame, 
+            textvariable=self.category_var, 
+            values=category_list, 
+            state="readonly", 
+            font=("Arial", 11),
+            width=14 # 밑으로 내려와 공간이 생겼으므로 가로 너비를 조금 더 넓힘(6 -> 10)
+        )
+        # side="top"으로 지정하여 1층 아래에 생성되게 하고, padx=25를 주어 아이콘 시작점 정렬을 맞췄습니다.
+        self.category_entry.pack(side="top", anchor="w", padx=(25, 0), pady=(3, 0))
 
 
-        # # 단위 - L, ml, 개 등
-        self.unit_frame = tk.Frame(self.left_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
-        self.unit_frame.pack(side="top", fill='x', pady=15)
+        # # 단위 - L, ml, 개 등 (줄바꿈 대응을 위해 내부 간격 조절)
+        self.unit_frame = tk.Frame(self.left_f, bg=self.bg_color)   
+        self.unit_frame.pack(side="top", fill='x', pady=(5, 10))
 
-        unit_photo = label_img_load("../img/unit.png")            # 이미지
+        unit_photo = label_img_load("../img/unit.png")            
         self.unit_icon = tk.Label(self.unit_frame, image=unit_photo, bg=self.bg_color)
         self.unit_icon.image = unit_photo
         self.unit_icon.pack(side="left")
@@ -205,36 +216,32 @@ class ItemAdjustmentPage:
         self.right_f.pack_propagate(0)
 
         # 유통기한 라벨
-        self.expiry_frame = tk.Frame(self.right_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
+        self.expiry_frame = tk.Frame(self.right_f, bg=self.bg_color)   
         self.expiry_frame.pack(side="top", fill='x', pady=10)
 
-        expiry_photo = label_img_load("../img/expiry.png")            # 이미지
+        expiry_photo = label_img_load("../img/expiry.png")            
         self.expiry_icon = tk.Label(self.expiry_frame, image=expiry_photo, bg=self.bg_color)
         self.expiry_icon.image = expiry_photo
         self.expiry_icon.pack(side="left")
 
-        self.expiry_l = tk.Label(self.expiry_frame, text=f"유통기한\n {self.item_data['expiry_date']}", bg=self.bg_color, font=("Arial", 10))    # 라벨
+        self.expiry_l = tk.Label(self.expiry_frame, text=f"유통기한\n {self.item_data['expiry_date']}", bg=self.bg_color, font=("Arial", 10))    
         self.expiry_l.pack(side="left", padx=3)
 
         
         def control_event(item):
-            # 새로운 창 띄우기
             expiry_window = tk.Toplevel(self.window)
             expiry_window.title("유통기한 변경")
             
             width = self.window.winfo_screenwidth()
             height = self.window.winfo_screenheight()
-            # 달력이 커졌으므로 팝업 창 해상도도 넉넉하게 확장합니다.
             expiry_window.geometry(f"420x280+{int(width/2-600/2)}+{int(height/2-340/2)}")   
             expiry_window.resizable(False, False)
             
-            # 안전망: 모달 윈도우 설정 (메인 잠금)
             expiry_window.transient(self.window)
             expiry_window.grab_set()
             
             print(type(item), item)
             
-            # font 속성을 지정하여 달력 크기를 훨씬 큼직하게 키웠습니다.
             year=item.split("-")[0]
             month=item.split("-")[1]
             day=item.split("-")[2]
@@ -248,59 +255,49 @@ class ItemAdjustmentPage:
                 date_pattern='yyyy-mm-dd'
             )
             self.calendar.pack(side="left", padx=5, pady=5, fill="both", expand=True)
-            # 달력창 띄우면 수정창 비활성화
             
             def on_confirm():
                 selected_date = self.calendar.get_date()
                 print(f"선택된 날짜: {selected_date}")
-                # DB에 선택된 날짜로 유통기한 업데이트 로직 필요
-                messagebox.showinfo("유통기한 변경", f"유통기한이 {selected_date}로 변경되었습니다.")   # 이 알람을 빼도 될듯..의견필요!
-                self.item_data['expiry_date'] = selected_date  # 아이템 데이트 업데이트 (실제 DB 연동 시에도 업데이트 필요)
+                messagebox.showinfo("유통기한 변경", f"유통기한이 {selected_date}로 변경되었습니다.") 
+                self.item_data['expiry_date'] = selected_date
 
-                '''
-                유통기한 변경 시 D-Day와 상태 라벨도 같이 업데이트해야 함
-                D-Day는 오늘 날짜와 유통기한의 차이로 계산
-                '''
-                # 1. 유통기한 라벨 바꾸기
                 self.expiry_l.config(text=f"유통기한\n {selected_date}")
-                # 2. D-Day 계산해서 라벨 바꾸기
+                
                 from datetime import datetime
                 today = datetime.today()
                 expiry_date = datetime.strptime(selected_date, "%Y-%m-%d")
                 d_day_diff = (expiry_date - today).days
                 if d_day_diff < 0:
                     self.d_day_l.config(text=f"D+{abs(d_day_diff)}")
-                    self.d_day = f"D+{abs(d_day_diff)}"  # D-Day 업데이트
+                    self.d_day = f"D+{abs(d_day_diff)}"  
                 else:
                     self.d_day_l.config(text=f"D-{d_day_diff}")
-                    self.d_day = f"D-{d_day_diff}"  # D-Day 업데이트
+                    self.d_day = f"D-{d_day_diff}"  
 
-                # 3. 상태 업데이트하기 (신선, 임박, 만료)
                 if d_day_diff < 0:
                     self.status_l.config(text=f"상태: 만료", fg='red')
                     expired_photo = label_img_load("../img/expired.png")
                     self.status_icon.config(image=expired_photo)
                     self.status_icon.image = expired_photo
-                    self.status = "만료"  # 상태 업데이트
+                    self.status = "만료"  
 
-                elif d_day_diff <= 3:  # 임박 기준은 3일 이내로 설정
+                elif d_day_diff <= 3:  
                     self.status_l.config(text=f"상태: 임박", fg='orange')
                     warning_photo = label_img_load("../img/warning.png")
                     self.status_icon.config(image=warning_photo)
                     self.status_icon.image = warning_photo
-                    self.status = "임박"  # 상태 업데이트
+                    self.status = "임박"  
 
                 else:
                     self.status_l.config(text=f"상태: 신선", fg='green')
                     fresh_photo = label_img_load("../img/fresh.png")
                     self.status_icon.config(image=fresh_photo)
                     self.status_icon.image = fresh_photo
-                    self.status = "신선"  # 상태 업데이트
+                    self.status = "신선"  
     
-
-                expiry_window.destroy()  # 팝업 창 닫기
+                expiry_window.destroy()  
                 
-            # fill='both', expand=True 옵션을 주어 달력 오른쪽 남은 공간을 버튼이 꽉 채우도록 했습니다.
             confirm_btn = tk.Button(
                 expiry_window, 
                 text="확인", 
@@ -314,30 +311,33 @@ class ItemAdjustmentPage:
         self.expiry_change.pack(side="left", padx=3)
 
 
-        self.d_day_frame = tk.Frame(self.right_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
+        self.d_day_frame = tk.Frame(self.right_f, bg=self.bg_color)   
         self.d_day_frame.pack(side="top", fill='x', pady=10)
 
-        d_day_photo = label_img_load("../img/d_day.png")            # 이미지
+        d_day_photo = label_img_load("../img/d_day.png")            
         self.d_day_icon = tk.Label(self.d_day_frame, image=d_day_photo, bg=self.bg_color)
         self.d_day_icon.image = d_day_photo
         self.d_day_icon.pack(side="left")
 
-        self.d_day_l = tk.Label(self.d_day_frame, text=f"D-Day\n   {self.item_data['d_day']}", bg=self.bg_color, font=("Arial", 10))    # 라벨
+        self.d_day_l = tk.Label(self.d_day_frame, text=f"D-Day\n   {self.item_data['d_day']}", bg=self.bg_color, font=("Arial", 10))    
         self.d_day_l.pack(side="left")
 
         
-        self.status_frame = tk.Frame(self.right_f, bg=self.bg_color)   # 프레임, bd=1, relief="solid"
+        self.status_frame = tk.Frame(self.right_f, bg=self.bg_color)   
         self.status_frame.pack(side="top", fill='x', pady=3)
+        
         if self.item_data['status'] == "신선":
-            status_photo = label_img_load("../img/fresh.png")            # 이미지
+            status_photo = label_img_load("../img/fresh.png")            
             fg_color = 'green'
         elif self.item_data['status'] == "임박":
-            status_photo = label_img_load("../img/warning.png")            # 이미지
+            status_photo = label_img_load("../img/warning.png")            
             fg_color = 'orange'
         elif self.item_data['status'] == "만료":
-            status_photo = label_img_load("../img/expired.png")            # 이미지
+            status_photo = label_img_load("../img/expired.png")            
             fg_color = 'red'
-
+        else:
+            status_photo = None
+            fg_color = 'black'
 
         self.status_icon = tk.Label(self.status_frame, image=status_photo, bg=self.bg_color)
         self.status_icon.image = status_photo
@@ -353,19 +353,12 @@ class ItemAdjustmentPage:
         return line
 
 
-        
-
-        
-
-
-
 if __name__ == "__main__":
-    # 테스트용 코드 - 실제로는 InventoryPage에서 DetailedItemPage를 호출할 때 사용
     root = tk.Tk()
-    root.withdraw()  # 메인 윈도우 숨기기 (테스트용)
+    root.withdraw() 
     
-    # 테스트 아이템 데이터
     test_item = {
+        'id': 1,
         'name': '우유',
         'category': '음료',
         'quantity': 1,

@@ -139,7 +139,7 @@ class DetailedItemPage:
         self.category_icon.image = category_photo
         self.category_icon.pack(side="left")
         
-        category_l = tk.Label(self.category_frame, text=f"카테고리: {self.item_data['category']}", bg=self.bg_color, font=("Arial", 12))
+        category_l = tk.Label(self.category_frame, text=f"카테고리: \n{self.item_data['category']}", bg=self.bg_color, font=("Arial", 12))
         category_l.pack(side="left", padx=3)
 
 

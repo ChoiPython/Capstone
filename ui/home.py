@@ -243,17 +243,15 @@ class HomePage(tk.Frame):
                 days_left = 0
                 status = "신선"
 
-            new_id = max([item['id'] for item in self.items]) + 1 if self.items else 1
             new_item = {
-                'id': new_id,
-                'name': f"스캔된 {detected_category}_{new_id}",
+                'name': " ",
                 'category': detected_category,
                 'quantity': 1,
                 'unit': '개',
                 'expiry_date': found_date,
                 'status': status,
-                'added_date': today.strftime("%Y-%m-%d"),
-                'd_day': f"D-{days_left}" if days_left >= 0 else f"D+{abs(days_left)}",
+                'reg_date': today.strftime("%Y-%m-%d"),
+                'Dday': f"D-{days_left}" if days_left >= 0 else f"D+{abs(days_left)}",
                 'image_path': saved_img_path  # 💡 [추가] 기왕 저장한 사진 경로도 DB에 함께 기록해둡니다!
             }
             
