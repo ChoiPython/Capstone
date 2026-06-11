@@ -10,6 +10,7 @@ from tkinter import ttk
 from datetime import datetime
 from detailed_item import DetailedItemPage
 
+import db_manager
 import os
 import sys
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -102,7 +103,7 @@ class InventoryPage(tk.Frame):
 
         # db에 저장되어 있는 카테고리로 표시
         self.items_categorys = set(item['category'] for item in self.items)  # items 리스트에서 카테고리 추출
-        categorys = ["전체"] + list(self.items_categorys)
+        categorys = ["전체"] + ["유제품 및 음료", "자연 신선식품", "신선 가공식품", "냉장 육류", "기타"]
 
         for cate in categorys:
             btn = tk.Button(self.category_btns_f, text=cate, font=("Arial", 12), bg=self.bg_color, fg="black", bd=1, relief="solid")
@@ -116,36 +117,11 @@ class InventoryPage(tk.Frame):
                 # 지금 이렇게 하면 db가 없는 상태에선 변경된 데이터가 초기화 됨.
                 self.destroy_frames_and_create()                # 기존 프레임 제거
                 self.items_grid(self.items)          # 인벤토리 리스트 안에 표 생성
-                qq
-            elif cate == "음식":
-                print("음식 카테고리 선택됨")
-                items = [item for item in self.items if item['category'] == cate]
-                self.destroy_frames_and_create()                # 기존 프레임 제거
-                self.items_grid(items)          # 인벤토리 리스트 안에 표 생성
-                
-            elif cate == "음료":
-                print("음료 카테고리 선택됨")
-                items = [item for item in self.items if item['category'] == cate]
-                self.destroy_frames_and_create()                # 기존 프레임 제거
-                self.items_grid(items)          # 인벤토리 리스트 안에 표 생성 
 
-            elif cate == "과일":
-                print("과일 카테고리 선택됨")
+            else:
                 items = [item for item in self.items if item['category'] == cate]
-                self.destroy_frames_and_create()                # 기존 프레임 제거
-                self.items_grid(items)          # 인벤토리 리스트 안에 표 생성 
-
-            elif cate == "채소":
-                print("채소 카테고리 선택됨")
-                items = [item for item in self.items if item['category'] == cate]
-                self.destroy_frames_and_create()                # 기존 프레임 제거
-                self.items_grid(items)          # 인벤토리 리스트 안에 표 생성  
-
-            elif cate == "기타":
-                print("기타 카테고리 선택됨")
-                items = [item for item in self.items if item['category'] == cate]
-                self.destroy_frames_and_create()                # 기존 프레임 제거
-                self.items_grid(items)          # 인벤토리 리스트 안에 표 생성  
+                self.destroy_frames_and_create()
+                self.items_grid(items)
 
             
     def destroy_frames_and_create(self):
@@ -185,13 +161,18 @@ class InventoryPage(tk.Frame):
         self.scrollbar.pack(side="right", fill="y")
 
         # 마우스 커서가 캔버스 영역에 들어오면 휠 스크롤 이벤트 연결 - 리눅스에서 Mousewheel 대신에 button-5, 4 사용
-        self.canvas.bind("<Enter>", lambda e: self.canvas.bind_all("<MouseWheel>", on_mousewheel))
-        # 벗어나면다시 해제
-        self.canvas.bind("<Leave>", lambda e: self.canvas.unbind_all("<MouseWheel>"))
-        
-        def on_mousewheel(event):
-            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        def on_mousewheel_linux(event):
+            if event.num == 5 or event.delta < 0:  # 아래 스크롤
+                self.canvas.yview_scroll(1, "units")
+            elif event.num == 4 or event.delta > 0:  # 위 스크롤
+                self.canvas.yview_scroll(-1, "units")
 
+        self.canvas.bind("<Enter>", lambda e: (
+            self.canvas.bind_all("<Button-4>", on_mousewheel_linux),
+            self.canvas.bind_all("<Button-5>", on_mousewheel_linux)))
+        self.canvas.bind("<Leave>", lambda e: (
+            self.canvas.unbind_all("<Button-4>"),
+            self.canvas.unbind_all("<Button-5>")))
 
 
     def items_grid(self, items=[]):
@@ -339,9 +320,8 @@ class InventoryPage(tk.Frame):
                         # 1. 기존 리스트(self.items)에서 해당 아이템을 찾아 삭제합니다.
                         for i, original_item in enumerate(self.items):
                             if original_item['id'] == item['id']: # ID로 매칭 (추후 ID가 있으면 ID로)
-                                del self.items[i]  # 해당 아이템 삭제
-                                break
-
+                                db_manager.delete_ingredient(item['id'])  # DB에서도 삭제      
+                                self.items.pop(i)
                         
                         # 2. 화면의 기존 그리드를 싹 지우고 다시 그립니다.
                         for widget in self.grid_f.winfo_children():
@@ -353,6 +333,7 @@ class InventoryPage(tk.Frame):
                         for i, original_item in enumerate(self.items):
                             if original_item['id'] == item['id']: # ID로 매칭 (추후 ID가 있으면 ID로)
                                 self.items[i] = updated_item
+                                db_manager.update_ingredient(self.items[i])  # DB에서도 업데이트
                                 break
                         
                         # 2. 화면의 기존 그리드를 싹 지우고 다시 그립니다.
@@ -365,6 +346,7 @@ class InventoryPage(tk.Frame):
                 
                 detailed_win = self.detailed_page.window
                 detailed_win.transient(self.winfo_toplevel())  
+                detailed_win.wait_visibility()
                 detailed_win.grab_set()
                 
 

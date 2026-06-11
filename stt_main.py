@@ -2,12 +2,6 @@
 STT (Speech-to-Text) - Whisper 기반 고정확도 버전
 Windows 개발 / Raspberry Pi 5 배포 공통
 
-엔진 비교:
-  faster-whisper small : 정확도 ★★★★☆  속도 빠름  (Pi5 권장)
-  faster-whisper medium: 정확도 ★★★★★  속도 보통  (Pi5 가능)
-  Google STT            : 정확도 ★★★★☆  인터넷 필요
-  Vosk small            : 정확도 ★★☆☆☆  오프라인   (비추천)
-
 설치:
   pip install faster-whisper pyaudio SpeechRecognition numpy
   pip install noisereduce   # 선택: 노이즈 제거
@@ -55,10 +49,10 @@ CONFIG = {
     "whisper_device": "cpu",
     "whisper_compute_type": "int8",
 
-    # ── 마이크 / 오디오 설정 ───────────────────────────────────────
-    "sample_rate": 16000,
+    # ── 마이크 / 오디오 설정 (reSpeaker 하드웨어 네이티브인 48000Hz로 변경!) ──
+    "sample_rate": 48000,       # 16000에서 48000으로 수정 완료 ✓
     "chunk_size": 1024,
-    "channels": 1,
+    "channels": 1,              # 1 = 모노, 2 = 스테레오
 
     # ── 음성 감지 설정 (연속 모드용) ───────────────────────────────
     "energy_threshold": 400,
@@ -113,22 +107,11 @@ _KO_SINO = {
 # ══════════════════════════════════════════════════════════════════════════════
 
 def parse_date_korean(text: str) -> str | None:
-    """
-    한국어 날짜 표현 → YYYY-MM-DD 변환.
-
-    지원 형식:
-      특수   : "오늘" / "내일" / "모레"
-      뒤/후  : "7일 뒤(후)" / "2주 뒤(후)" / "일주일 뒤(후)"
-               "3달 뒤(후)" / "3개월 뒤(후)" / "한 달 뒤(후)"
-               "이틀 뒤(후)" 등 고유어 날수
-      절대   : "2024년 7월 1일" / "7월 1일" / "YYYY-MM-DD"
-      단순   : "3일" / "일주일" / "한달" / "3달" / "일년" / "1년"
-               "이틀" / "사흘" 등 고유어 (뒤/후 없이)
-    """
+    """한국어 날짜 표현 → YYYY-MM-DD 변환."""
     today = datetime.today()
     t = text.strip()
 
-    # ── 1. 특수 단어 ──────────────────────────────────────────────────
+    # ── 1. 특수 단어
     if "오늘" in t:
         return today.strftime("%Y-%m-%d")
     if "내일" in t:
@@ -136,7 +119,7 @@ def parse_date_korean(text: str) -> str | None:
     if "모레" in t:
         return (today + timedelta(days=2)).strftime("%Y-%m-%d")
 
-    # ── 2. 뒤/후 표현 ────────────────────────────────────────────────
+    # ── 2. 뒤/후 표현
     for word, days in _KO_DAY.items():
         if word in t and re.search(r'[뒤후]', t):
             return (today + timedelta(days=days)).strftime("%Y-%m-%d")
@@ -160,7 +143,7 @@ def parse_date_korean(text: str) -> str | None:
     if m:
         return _add_months(today, int(m.group(1))).strftime("%Y-%m-%d")
 
-    # ── 3. 절대 날짜 (단순 표현보다 먼저 — "7월 3일"이 "3일"로 잘못 파싱되는 것 방지) ──
+    # ── 3. 절대 날짜
     m = re.search(r'(?:(\d{4})년\s*)?(\d{1,2})월\s*(\d{1,2})일', t)
     if m:
         year  = int(m.group(1)) if m.group(1) else today.year
@@ -172,8 +155,7 @@ def parse_date_korean(text: str) -> str | None:
     if m:
         return m.group(0)
 
-    # ── 4. 단순 표현 (뒤/후 없이) ────────────────────────────────────
-    # 년 (year) — 일주일보다 먼저 체크 ("일년"의 "일"과 충돌 없음)
+    # ── 4. 단순 표현
     for word, num in _KO_SINO.items():
         if re.search(rf'{word}\s*년', t):
             return _add_months(today, num * 12).strftime("%Y-%m-%d")
@@ -182,11 +164,9 @@ def parse_date_korean(text: str) -> str | None:
     if m:
         return _add_months(today, int(m.group(1)) * 12).strftime("%Y-%m-%d")
 
-    # 일주일
     if "일주일" in t:
         return (today + timedelta(weeks=1)).strftime("%Y-%m-%d")
 
-    # 달/개월 (month)
     for word, num in _KO_NUM.items():
         if re.search(rf'{word}\s*달', t):
             return _add_months(today, num).strftime("%Y-%m-%d")
@@ -195,17 +175,14 @@ def parse_date_korean(text: str) -> str | None:
     if m:
         return _add_months(today, int(m.group(1))).strftime("%Y-%m-%d")
 
-    # 주 (week)
     m = re.search(r'(\d+)\s*주', t)
     if m:
         return (today + timedelta(weeks=int(m.group(1)))).strftime("%Y-%m-%d")
 
-    # 고유어 날수 standalone ("이틀", "사흘" 등)
     for word, days in _KO_DAY.items():
         if word in t:
             return (today + timedelta(days=days)).strftime("%Y-%m-%d")
 
-    # n일 standalone — 반드시 "MM월 DD일" 체크 이후에 위치
     m = re.search(r'(\d+)\s*일', t)
     if m:
         return (today + timedelta(days=int(m.group(1)))).strftime("%Y-%m-%d")
@@ -214,47 +191,28 @@ def parse_date_korean(text: str) -> str | None:
 
 
 def parse_voice_input(text: str) -> dict | None:
-    """
-    음성 인식 텍스트에서 식재료 정보 추출.
-
-    기대 발화 형식 (순서 고정):
-      "[이름] [카테고리] [유통기한]"
-      예) "우유 유제품 7월 1일"
-          "닭가슴살 육류 7일 뒤"
-          "두부 콩류 2주 후"
-          "사과 과일 한 달 뒤"
-          "오렌지 주스 음료 내일"
-
-    반환:
-      {"name": str, "category": str, "exp_date": str}  성공
-      None  파싱 실패
-    """
-    # ── 날짜 패턴 ─────────────────────────────────────────────────
-    _ko_num_re  = '|'.join(_KO_NUM.keys())   # 한|두|세|...
-    _ko_day_re  = '|'.join(_KO_DAY.keys())   # 하루|이틀|...
-    _ko_sino_re = '|'.join(_KO_SINO.keys())  # 일|이|삼|...
+    """음성 인식 텍스트에서 식재료 정보 추출."""
+    _ko_num_re  = '|'.join(_KO_NUM.keys())
+    _ko_day_re  = '|'.join(_KO_DAY.keys())
+    _ko_sino_re = '|'.join(_KO_SINO.keys())
 
     date_pattern = (
-        # ── 절대 날짜 (가장 먼저 — "7월 3일"이 "3일"로 잘못 매칭되는 것 방지)
-        r'(?:\d{4}년\s*)?\d{1,2}월\s*\d{1,2}일'              # MM월 DD일
-        r'|\d{4}-\d{2}-\d{2}'                                 # YYYY-MM-DD
-        # ── 뒤/후 표현
-        r'|\d+\s*일\s*[뒤후]'                                  # n일 뒤/후
-        r'|일주일\s*[뒤후]'                                     # 일주일 뒤/후
-        r'|\d+\s*주\s*[뒤후]'                                  # n주 뒤/후
-        r'|(?:' + _ko_num_re + r')\s*달\s*[뒤후]'             # 한/두...달 뒤/후
-        r'|\d+\s*(?:달|개월)\s*[뒤후]'                         # n달/개월 뒤/후
-        r'|(?:' + _ko_day_re + r')\s*[뒤후]'                  # 이틀/사흘... 뒤/후
-        # ── 단순 표현 (뒤/후 없이)
-        r'|(?:' + _ko_sino_re + r')\s*년'                     # 일년/이년...
-        r'|\d+\s*년'                                            # 1년/2년
-        r'|일주일'                                              # 일주일
-        r'|(?:' + _ko_num_re + r')\s*달'                      # 한달/두달...
-        r'|\d+\s*(?:달|개월)'                                  # n달/개월
-        r'|\d+\s*주'                                            # n주
-        r'|(?:' + _ko_day_re + r')'                            # 이틀/사흘...
-        r'|\d+\s*일'                                            # n일 (단독, 반드시 마지막)
-        # ── 특수 단어
+        r'(?:\d{4}년\s*)?\d{1,2}월\s*\d{1,2}일'
+        r'|\d{4}-\d{2}-\d{2}'
+        r'|\d+\s*일\s*[뒤후]'
+        r'|일주일\s*[뒤후]'
+        r'|\d+\s*주\s*[뒤후]'
+        r'|(?:' + _ko_num_re + r')\s*달\s*[뒤후]'
+        r'|\d+\s*(?:달|개월)\s*[뒤후]'
+        r'|(?:' + _ko_day_re + r')\s*[뒤후]'
+        r'|(?:' + _ko_sino_re + r')\s*년'
+        r'|\d+\s*년'
+        r'|일주일'
+        r'|(?:' + _ko_num_re + r')\s*달'
+        r'|\d+\s*(?:달|개월)'
+        r'|\d+\s*주'
+        r'|(?:' + _ko_day_re + r')'
+        r'|\d+\s*일'
         r'|오늘|내일|모레'
     )
 
@@ -268,7 +226,6 @@ def parse_voice_input(text: str) -> dict | None:
         print(f"[파서] 날짜 변환 실패: '{date_match.group(0)}'")
         return None
 
-    # ── 날짜 이전 텍스트에서 이름·카테고리 추출 ─────────────────
     before_date = text[: date_match.start()].strip()
     tokens = before_date.split()
 
@@ -276,16 +233,11 @@ def parse_voice_input(text: str) -> dict | None:
         print(f"[파서] 이름·카테고리 정보 부족: '{before_date}'  (단어 {len(tokens)}개)")
         return None
 
-    # 첫~끝-1 토큰 = 이름 (여러 단어 허용), 마지막 토큰 = 카테고리
     name     = " ".join(tokens[:-1])
     category = tokens[-1]
 
     return {"name": name, "category": category, "exp_date": exp_date}
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# DB 자동 저장 통합 함수
-# ══════════════════════════════════════════════════════════════════════════════
 
 def save_voice_to_db(text: str) -> bool:
     """인식된 텍스트를 파싱하여 DB에 저장."""
@@ -301,10 +253,6 @@ def save_voice_to_db(text: str) -> bool:
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 노이즈 제거
-# ══════════════════════════════════════════════════════════════════════════════
-
 def reduce_noise(audio_np: np.ndarray, sample_rate: int) -> np.ndarray:
     if not NOISEREDUCE_AVAILABLE:
         return audio_np
@@ -314,6 +262,43 @@ def reduce_noise(audio_np: np.ndarray, sample_rate: int) -> np.ndarray:
         prop_decrease=0.75, stationary=False,
     )
     return reduced
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# reSpeaker 최적화용 커스텀 마이크 클래스
+# ══════════════════════════════════════════════════════════════════════════════
+
+class CustomMicrophone(sr.Microphone):
+    class CustomMicrophoneStream(object):
+        def __init__(self, pyaudio_stream, channels=1):
+            self.pyaudio_stream = pyaudio_stream
+            self.channels = channels
+
+        def read(self, size):
+            raw_data = self.pyaudio_stream.read(size, exception_on_overflow=False)
+            if self.channels == 2:
+                audio_np = np.frombuffer(raw_data, dtype=np.int16)
+                mono_np = audio_np[0::2]  # 스테레오를 모노로 슬라이싱 변환
+                return mono_np.tobytes()
+            return raw_data
+
+    def __init__(self, device_index=None, sample_rate=16000, chunk_size=1024, channels=1):
+        super().__init__(device_index=device_index, sample_rate=sample_rate, chunk_size=chunk_size)
+        self.channels = channels
+
+    def __enter__(self):
+        assert self.stream is None, "이미 마이크 스트림이 실행 중입니다."
+        pyaudio_module = self.get_pyaudio()
+        self.pyaudio_stream = pyaudio_module.open(
+            input_device_index=self.device_index,
+            channels=self.channels,
+            format=self.format,
+            rate=self.sample_rate,
+            frames_per_buffer=self.chunk_size,
+            input=True,
+        )
+        self.stream = self.CustomMicrophoneStream(self.pyaudio_stream, self.channels)
+        return self
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -331,6 +316,7 @@ class WhisperSTT:
         print(f"[Whisper] 준비 완료 ✓   모델={model_size}  device={device}")
 
     def transcribe(self, audio_data: sr.AudioData) -> str:
+        # get_wav_data를 호출할 때 16000Hz로 정밀 다운샘플링하여 Whisper에 전달합니다.
         wav_bytes = audio_data.get_wav_data(convert_rate=16000, convert_width=2)
         audio_np = np.frombuffer(wav_bytes[44:], dtype=np.int16).astype(np.float32) / 32768.0
         if CONFIG["noise_reduction"]:
@@ -390,36 +376,33 @@ class MicrophoneSTT:
         if self.config["noise_reduction"] and not NOISEREDUCE_AVAILABLE:
             print("[안내] 노이즈 제거 비활성: pip install noisereduce")
 
-    # ── 커스텀 녹음 (once 모드 전용) ─────────────────────────────────────────
-    # SpeechRecognition의 listen()을 우회하여 PyAudio로 직접 녹음.
-    # - 최소 min_record_duration 초 동안 반드시 녹음
-    # - 그 이후 silence_after_speech 초 침묵이 감지되면 자동 종료
-    # - max_record_duration 초를 넘으면 강제 종료
-
     def _listen_custom(self, mic_index: int = None) -> sr.AudioData:
-        min_dur     = self.config["min_record_duration"]   # 기본 10초
-        silence_sec = self.config["silence_after_speech"]  # 기본 2초
-        max_dur     = self.config["max_record_duration"]   # 기본 60초
-        RATE        = self.config["sample_rate"]           # 16000
-        CHUNK       = self.config["chunk_size"]            # 1024
+        min_dur     = self.config["min_record_duration"]
+        silence_sec = self.config["silence_after_speech"]
+        max_dur     = self.config["max_record_duration"]
+        RATE        = self.config["sample_rate"]
+        CHUNK       = self.config["chunk_size"]
 
         p = pyaudio.PyAudio()
         stream = p.open(
             format             = pyaudio.paInt16,
-            channels           = 1,
+            channels           = self.config["channels"],
             rate               = RATE,
             input              = True,
             input_device_index = mic_index,
             frames_per_buffer  = CHUNK,
         )
 
-        # ── 0.5초 주변 소음 측정으로 에너지 임계값 자동 보정 ────────
+        # ── 0.5초 주변 소음 측정으로 에너지 임계값 자동 보정
         print(">>> 주변 소음 측정 중...", end=" ", flush=True)
         calib_chunks = int(RATE / CHUNK * 0.5)
         noise_buf = []
         for _ in range(calib_chunks):
             data = stream.read(CHUNK, exception_on_overflow=False)
-            noise_buf.append(np.frombuffer(data, dtype=np.int16).astype(np.float32))
+            chunk_np = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+            if self.config["channels"] == 2:
+                chunk_np = chunk_np[0::2]
+            noise_buf.append(chunk_np)
         noise_rms       = np.sqrt(np.mean(np.concatenate(noise_buf) ** 2))
         energy_threshold = max(noise_rms * 1.5, self.config["energy_threshold"])
         print(f"완료 (임계값={energy_threshold:.0f})")
@@ -431,12 +414,11 @@ class MicrophoneSTT:
 
         frames           = []
         start_time       = time.time()
-        last_speech_time = start_time  # 마지막 발화 감지 시각
+        last_speech_time = start_time
 
         while True:
             elapsed = time.time() - start_time
 
-            # 최대 시간 초과 → 강제 종료
             if elapsed > max_dur:
                 print(f"\n[최대 {max_dur}초 초과] 강제 종료")
                 break
@@ -446,15 +428,20 @@ class MicrophoneSTT:
             except OSError:
                 break
 
+            chunk_np = np.frombuffer(chunk_data, dtype=np.int16)
+            
+            # ── 2채널(스테레오)일 경우 즉각 1채널(모노)로 축소
+            if self.config["channels"] == 2:
+                chunk_np = chunk_np[0::2]
+                chunk_data = chunk_np.tobytes()
+
             frames.append(chunk_data)
 
-            # 현재 청크 에너지 계산
-            chunk_np = np.frombuffer(chunk_data, dtype=np.int16).astype(np.float32)
-            rms = np.sqrt(np.mean(chunk_np ** 2))
+            chunk_float = chunk_np.astype(np.float32)
+            rms = np.sqrt(np.mean(chunk_float ** 2))
             if rms > energy_threshold:
                 last_speech_time = time.time()
 
-            # 최소 녹음 시간 경과 후 침묵 체크
             if elapsed >= min_dur:
                 silence_elapsed = time.time() - last_speech_time
                 if silence_elapsed >= silence_sec:
@@ -464,7 +451,6 @@ class MicrophoneSTT:
                     )
                     break
 
-        # 스트림 정리 (get_sample_size는 terminate 전에 호출)
         sample_width = p.get_sample_size(pyaudio.paInt16)
         stream.stop_stream()
         stream.close()
@@ -472,20 +458,16 @@ class MicrophoneSTT:
 
         return sr.AudioData(b"".join(frames), RATE, sample_width)
 
-    # ── 단일 발화 인식 ─────────────────────────────────────────────────────────
-
     def listen_once(self, mic_index: int = None) -> str:
-        """최소 10초 + 2초 침묵 감지 후 텍스트 반환"""
         audio = self._listen_custom(mic_index=mic_index)
         return self._transcribe(audio)
 
-    # ── 연속 인식 ─────────────────────────────────────────────────────────────
-    # 연속 모드는 SpeechRecognition 백그라운드 리스너 사용.
-    # pause_threshold=2.0 이 설정되므로 각 발화 후 2초 침묵 시 인식 트리거.
-
     def listen_continuous(self, callback, mic_index: int = None):
-        """백그라운드 연속 인식, callback(text) 호출"""
-        mic = sr.Microphone(device_index=mic_index, sample_rate=self.config["sample_rate"])
+        mic = CustomMicrophone(
+            device_index=mic_index, 
+            sample_rate=self.config["sample_rate"],
+            channels=self.config["channels"]
+        )
 
         def _cb(recognizer, audio):
             text = self._transcribe(audio)
@@ -494,14 +476,12 @@ class MicrophoneSTT:
 
         print(
             "[STT] 연속 인식 시작 (Ctrl+C로 종료)\n"
-            f"      발화 후 {self.config['pause_threshold']}초 침묵 시 인식 → 콜백 호출"
+            f"       발화 후 {self.config['pause_threshold']}초 침묵 시 인식 → 콜백 호출"
         )
         with mic as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=1)
 
         return self.recognizer.listen_in_background(mic, _cb)
-
-    # ── 내부: 텍스트 변환 ─────────────────────────────────────────────────────
 
     def _transcribe(self, audio: sr.AudioData) -> str:
         try:
@@ -523,10 +503,12 @@ class MicrophoneSTT:
             print(f"[오류] {e}")
             return ""
 
-    # ── 마이크 감도 자동 보정 ──────────────────────────────────────────────────
-
     def calibrate(self, mic_index: int = None, duration: int = 3):
-        mic = sr.Microphone(device_index=mic_index, sample_rate=self.config["sample_rate"])
+        mic = CustomMicrophone(
+            device_index=mic_index, 
+            sample_rate=self.config["sample_rate"],
+            channels=self.config["channels"]
+        )
         print(f"[감도 보정] {duration}초간 조용히 계세요...")
         with mic as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=duration)
@@ -561,7 +543,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="고정확도 STT (Whisper 기반)")
     parser.add_argument("--engine",     choices=["whisper", "google"], default=CONFIG["engine"])
-    parser.add_argument("--model",      default=None,                  # None = 자동 선택
+    parser.add_argument("--model",      default=None,
                         choices=["tiny", "base", "small", "medium", "large-v3"],
                         help="Whisper 모델 (기본: --save-db 시 medium, 그 외 small)")
     parser.add_argument("--mode",       choices=["once", "continuous"], default="once")
@@ -569,21 +551,84 @@ if __name__ == "__main__":
     parser.add_argument("--mic-index",  type=int, default=None)
     parser.add_argument("--calibrate",  action="store_true")
     parser.add_argument("--save-db",    action="store_true",
-                        help="인식 결과를 DB에 자동 저장 (형식: '이름 카테고리 유통기한')")
+                        help="인식 결과를 DB에 자동 저장")
     parser.add_argument("--min-sec",    type=int, default=CONFIG["min_record_duration"],
-                        help=f"최소 녹음 시간 초 (기본: {CONFIG['min_record_duration']})")
+                        help=f"최소 녹음 시간 초")
     parser.add_argument("--silence",    type=float, default=CONFIG["silence_after_speech"],
-                        help=f"발화 후 침묵 감지 시간 초 (기본: {CONFIG['silence_after_speech']})")
+                        help=f"발화 후 침묵 감지 시간 초")
     args = parser.parse_args()
 
     if args.list_mics:
         list_microphones()
         sys.exit(0)
 
-    # --model 미지정 시: --save-db면 medium, 아니면 small 자동 선택
     if args.model is None:
         args.model = "medium" if args.save_db else "small"
         print(f"[모델] --model 미지정 → '{args.model}' 자동 선택")
+
+    # ── [핵심 개선] reSpeaker 마이크 자동 감지 및 2채널 설정 ──────────────────────────
+    if args.mic_index is None:
+        print("[마이크] 자동 감지 스캔 중...")
+        p = pyaudio.PyAudio()
+        detected = False
+        for i in range(p.get_device_count()):
+            try:
+                info = p.get_device_info_by_index(i)
+                dev_name = info.get("name", "")
+                max_in = info.get("maxInputChannels", 0)
+                
+                # 반드시 이름이 seeed 계열이면서 '실제 입력 채널(maxInputChannels)'이 독점 안되고 살아있어야 선택!
+                if any(x in dev_name.lower() for x in ["seeed", "respeaker", "voicecard"]) and max_in > 0:
+                    args.mic_index = i
+                    CONFIG["channels"] = max_in
+                    print(f"  -> ✓ reSpeaker 마이크 직접 감지 완료! (Index: {args.mic_index}, Name: {dev_name})")
+                    print(f"  -> {max_in}채널 녹음 및 실시간 모노 정밀변환 모드를 실행합니다.")
+                    detected = True
+                    break
+            except Exception:
+                continue
+        
+        # 하드웨어 직접 접근이 독점되어 있을 경우 -> 기본 가상 채널(default/pulse) 우회 접근
+        if not detected:
+            print("  -> reSpeaker 하드웨어 장치가 독점되어 직접 접근이 어렵습니다.")
+            print("  -> 시스템 기본(default / pulse) 가상 장치를 찾아 우회 연결합니다...")
+            for i in range(p.get_device_count()):
+                try:
+                    info = p.get_device_info_by_index(i)
+                    dev_name = info.get("name", "")
+                    max_in = info.get("maxInputChannels", 0)
+                    
+                    if any(x in dev_name.lower() for x in ["default", "pulse"]) and max_in > 0:
+                        args.mic_index = i
+                        CONFIG["channels"] = max_in
+                        print(f"  -> ✓ 기본 가상 마이크 우회 감지 완료! (Index:, Name: {dev_name})")
+                        print(f"  -> {max_in}채널 모드로 안전 녹음을 시작합니다.")
+                        detected = True
+                        break
+                except Exception:
+                    continue
+                    
+        p.terminate()
+        
+        if args.mic_index is None:
+            print("  -> ✗ 사용할 수 있는 마이크 장치를 발견하지 못했습니다. 기본 설정을 시도합니다.")
+    else:
+        # 사용자가 마이크 인덱스를 강제 지정했을 때도 실제 가용 채널 수를 자동으로 확인
+        print(f"[마이크] 지정한 마이크 인덱스를 사용합니다: {args.mic_index}")
+        p = pyaudio.PyAudio()
+        try:
+            info = p.get_device_info_by_index(args.mic_index)
+            dev_name = info.get("name", "")
+            max_in = info.get("maxInputChannels", 0)
+            if max_in > 0:
+                CONFIG["channels"] = max_in
+                print(f"  -> 장치 이름: {dev_name}")
+                print(f"  -> 이 장치의 가용 채널 수({max_in}채널)를 자동으로 적용해 구동합니다.")
+            else:
+                print(f"  -> [경고] 지정하신 {args.mic_index}번 장치는 현재 사용 가능한 채널 수가 0개입니다.")
+        except Exception:
+            pass
+        p.terminate()
 
     CONFIG["engine"]               = args.engine
     CONFIG["whisper_model"]        = args.model
@@ -595,7 +640,7 @@ if __name__ == "__main__":
         db_manager.create_table()
         print("[DB] 냉장고 DB 연결 완료. 자동 저장 활성화.")
         print("[안내] 발화 형식: '이름 카테고리 유통기한'")
-        print("       예) 우유 유제품 7월 1일 / 닭가슴살 육류 7일 뒤 / 두부 콩류 2주 후\n")
+        print("       예) 우유 유제품 7월 1일 / 닭가슴살 육류 7일 뒤\n")
 
     stt = MicrophoneSTT(CONFIG)
 
@@ -627,4 +672,4 @@ if __name__ == "__main__":
             stop(wait_for_stop=False)
             print("\n\n=== 전체 결과 ===")
             for i, t in enumerate(results, 1):
-                print(f"  {i}. {t}")
+                print(f" {t}")

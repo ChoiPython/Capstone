@@ -1,47 +1,73 @@
 import cv2
+import os
+import time
 from ultralytics import YOLO
 
 # =================================================================
-# [3] YOLOv8 기반 스마트 냉장고 6대 카테고리 탐지 함수
+# [3] YOLOv8 기반 스마트 냉장고 6대 카테고리 탐지 & 이미지 저장 함수
 # =================================================================
-def detect_food_category(frame, model_path="best.pt"):
+def detect_food_category(frame, model_path="best.pt", save_dir="captured_images"):
     """
-    카메라 프레임을 받아 학습된 YOLOv8 모델로 6대 카테고리 중 
-    가장 확률이 높은 음식을 탐지하여 이름(클래스명)을 반환하는 함수
+    카메라 프레임을 받아 학습된 YOLOv8 모델로 카테고리를 탐지하고,
+    해당 물체 영역(박스)만 잘라내어 이미지로 저장한 뒤 
+    (클래스명, 저장된_이미지_경로)를 반환하는 함수
     """
+    # 1. 이미지를 저장할 폴더가 없으면 자동 생성
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
     try:
-        # 1. 가중치 파일(best.pt) 로드
         model = YOLO(model_path)
-        
-        # 2. 이미지 추론 (라즈베리파이 메모리 절약을 위해 stream=True 권장)
-        # verbose=False를 주면 터미널 창에 불필요한 로그가 찍히지 않아 깔끔합니다.
         results = model(frame, stream=True, verbose=False)
         
         highest_conf = 0.0
-        detected_class_name = "Unknown"  # 아무것도 발견되지 않았을 때 기본값
+        detected_class_name = "etc"
+        best_box_coords = None  # 가장 신뢰도가 높은 물체의 좌표 저장용
         
-        # 3. 탐지된 결과 분석 (가장 신뢰도(Confidence)가 높은 물체 1개 고르기)
+        # 2. 탐지된 결과 분석
         for r in results:
             boxes = r.boxes
             for box in boxes:
-                # 신뢰도 점수 (0.0 ~ 1.0)
                 conf = float(box.conf[0])
-                
-                # 여러 개가 잡혔다면 그중 가장 확실한(확률이 높은) 물체 하나만 선택
                 if conf > highest_conf:
                     highest_conf = conf
-                    # 클래스 번호 점수 -> 영문 클래스명 변환
                     class_id = int(box.cls[0])
                     detected_class_name = model.names[class_id]
+                    # 바운딩 박스 좌표 추출 [x1, y1, x2, y2]
+                    best_box_coords = box.xyxy[0].cpu().numpy()
         
-        # 임계값 설정 (예: 40% 이상의 확률로 확신할 때만 정답으로 인정)
-        if highest_conf >= 0.40:
+        # 고유한 파일명 생성을 위해 현재 시간을 활용
+        timestamp = int(time.time())
+        saved_img_path = os.path.join(save_dir, f"item_{timestamp}.jpg")
+        
+        # 3. 확신할 수 있는 물체가 발견되었을 때 (이미지 크롭)
+        if highest_conf >= 0.40 and best_box_coords is not None:
             print(f"🎯 YOLO 탐지 성공: {detected_class_name} (신뢰도: {highest_conf*100:.1f}%)")
-            return detected_class_name
+            
+            # 박스 좌표를 정수형으로 변환
+            x1, y1, x2, y2 = map(int, best_box_coords)
+            
+            # 혹시 모를 에러(박스가 화면 밖으로 나감) 방지를 위해 좌표를 화면 크기 내로 제한
+            h, w, _ = frame.shape
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(w, x2), min(h, y2)
+            
+            # 프레임에서 해당 박스 영역만 잘라내기 (Crop)
+            cropped_img = frame[y1:y2, x1:x2]
+            
+            # 잘라낸 이미지 저장
+            cv2.imwrite(saved_img_path, cropped_img)
+            print(f"📸 인식된 물체 크롭 이미지 저장 완료: {saved_img_path}")
+            
+            return detected_class_name, saved_img_path
+            
+        # 4. 확신할 수 없거나 아무것도 못 찾았을 때 (원본 프레임 저장)
         else:
-            print("❓ YOLO 탐지 결과: 무엇인지 확실하게 판별할 수 없습니다. (기타/Unknown)")
-            return "etc"  # 확신이 없을 때는 안전하게 etc(기타) 반환
+            print("❓ YOLO 탐지 결과: 확실하게 판별할 수 없어 원본을 저장합니다. (etc)")
+            # 자르지 않고 원본 프레임을 그대로 저장
+            cv2.imwrite(saved_img_path, frame)
+            return "etc", saved_img_path
             
     except Exception as e:
         print(f"❌ YOLO 실행 중 오류 발생: {e}")
-        return "etc"
+        return "etc", None

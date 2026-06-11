@@ -2,29 +2,19 @@ import tkinter as tk
 from PIL import Image, ImageTk
 from home import HomePage  # 메인 화면 프레임 임포트
 from inventory import InventoryPage # 인벤토리 화면 프레임 임포트
-
+import db_manager
+from datetime import datetime
 class UI:
     def __init__(self, master):
         self.bg_color = "#fafaf8"
         self.master = master
         self.current_page = None  # 현재 중앙에 띄워진 페이지를 저장할 변수
-        
-        # 테스트 데이터 - 데이터에 D-day가 없어서 코드별로 추가하는데 이게 db단에서 처리해야함. 지금은 일단 코드에 추가했음.
-        self.items = [
-            {'id':1,'name': '돼지고기', 'category': '음식', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-04-30', 'status': '만료', 'added_date': '2024-06-25'}, 
-            {'id':2,'name': '소고기', 'category': '음식', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-05-20', 'status': '만료', 'added_date': '2024-06-25'}, 
-            {'id':3,'name': '당근', 'category': '채소', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-05-22', 'status': '임박', 'added_date': '2024-06-25'}, 
-            {'id':4,'name': '양상추', 'category': '채소', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-05-22', 'status': '신선', 'added_date': '2024-06-25'}, 
-            {'id':5,'name': '우유', 'category': '음료', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-08-30', 'status': '신선', 'added_date': '2024-06-25'}, 
-            {'id':6,'name': '우유', 'category': '음료', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-08-30', 'status': '신선', 'added_date': '2024-06-25'}, 
-            {'id':7,'name': '사과', 'category': '과일', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-09-30', 'status': '신선', 'added_date': '2024-06-25'}, 
-            {'id':8,'name': '바나나', 'category': '과일', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-09-30', 'status': '신선', 'added_date': '2024-06-25'}, 
-            {'id':9,'name': '오렌지', 'category': '과일', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-09-30', 'status': '신선', 'added_date': '2024-06-25'}, 
-            {'id':10,'name': '케찹', 'category': '기타', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-09-30', 'status': '신선', 'added_date': '2024-06-25'}, 
-            {'id':11,'name': '마요네즈', 'category': '기타', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-09-30', 'status': '신선', 'added_date': '2024-06-25'}, 
-            {'id':12,'name': '햄', 'category': '기타', 'quantity': 1, 'unit': '개', 'expiry_date': '2026-09-30', 'status': '신선', 'added_date': '2024-06-25'}, 
-        ]
 
+        db_manager.create_table()  # DB 테이블 생성 (초기 1회 실행)
+
+        self.items = []
+        self.refresh_items_from_db()
+        
         # ㅡㅡㅡㅡㅡㅡ UI 해상도 설정 ㅡㅡㅡㅡㅡㅡ
         width  = self.master.winfo_screenwidth()
         height = self.master.winfo_screenheight()
@@ -45,7 +35,6 @@ class UI:
         self.menu_button_frame(img_path='../img/inventory2.png', text="인벤토리", 
                                command=lambda: self.show_page("inventory"))
 
-
         # 처음 실행 시 메인 화면(home)을 기본으로 띄웁니다.
         self.show_page("home")  # 테스트용으로 인벤토리 페이지를 먼저 띄우도록 설정
         # self.show_page("home")  # 실제 배포 시에는 메인 화면이
@@ -60,13 +49,57 @@ class UI:
         self.main_f.pack(side="right")
         self.main_f.pack_propagate(0)
 
+    def refresh_items_from_db(self):
+        """DB에서 데이터를 가져와 UI 포맷(딕셔너리 리스트)에 맞게 가공하는 함수"""
+        raw_data = db_manager.select_all()  
+        # raw_data 구조: (id, name, category_name, exp_date, reg_date, memo)
+        
+        self.items = []
+        for row in raw_data:
+            expiry_date_str = row[3] # 'YYYY-MM-DD' 형식 가정
+            
+            # 4. 실시간으로 D-Day 및 상태(Status) 계산
+            status = "신선"
+            d_day_str = "D-0"
+            try:
+                exp_date = datetime.strptime(expiry_date_str, '%Y-%m-%d')
+                today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                delta_days = (exp_date - today).days
+                
+                if delta_days < 0:
+                    status = "만료"
+                    d_day_str = f"D+{abs(delta_days)}"
+                elif delta_days <= 3:  # 3일 이내면 임박
+                    status = "임박"
+                    d_day_str = f"D-{delta_days}"
+                else:
+                    status = "신선"
+                    d_day_str = f"D-{delta_days}"
+            except Exception as e:
+                print(f"날짜 계산 오류: {e}")
+
+            # 5. UI 가 정상 작동하도록 딕셔너리 구조로 맵핑
+            # (조원 DB에 수량/단위가 없으므로 임시로 1, '개'로 지정하거나 기획에 맞춰 DB 테이블 컬럼 추가 필요)
+            item_dict = {
+                'id': row[0],
+                'name': row[1],
+                'category': row[2] if row[2] else '기타',
+                'quantity': 1,       # DB 정합성을 위해 나중에 DB에 컬럼 추가 권장
+                'unit': '개',         # DB 정합성을 위해 나중에 DB에 컬럼 추가 권장
+                'expiry_date': expiry_date_str,
+                'status': status,
+                'd_day': d_day_str,
+                'added_date': row[4][:10] if row[4] else '' # 등록일 년-월-일만 추출
+            }
+            self.items.append(item_dict)
+
     # [핵심] 화면 전환(스왑) 함수
     def show_page(self, page_name, category="전체"):
         # 기존 화면이 열려있다면 파괴(삭제)하여 메모리를 비웁니다.
         if self.current_page is not None:
             self.current_page.destroy()
 
-        # 요청된 페이지 객체를 생성하여 컨테이너(self.main_f) 위에 얹습니다.``
+        # 요청된 페이지 객체를 생성하여 컨테이너(self.main_f) 위에 얹습니다.
         if page_name == "home":
             home_items= self.items[0:4]
             self.current_page = HomePage(self.main_f, self, items=home_items)

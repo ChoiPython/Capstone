@@ -100,6 +100,26 @@ def select_all():
     conn.close()
     return rows
 
+def delete_ingredient(ingredient_id):
+    """
+    주어진 id를 가진 식재료 데이터를 ingredients 테이블에서 영구 삭제합니다.
+    반환값: 성공 True / 실패 False
+    """
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        # SQL의 DELETE 문을 사용해 해당 ID의 식재료만 삭제
+        cur.execute("DELETE FROM ingredients WHERE id = ?", (ingredient_id,))
+        
+        conn.commit()
+        conn.close()
+        print(f"[DB 삭제 성공] 식재료 ID: {ingredient_id}가 정상적으로 삭제되었습니다.")
+        return True
+
+    except Exception as e:
+        print(f"[DB 삭제 실패] 오류 발생: {e}")
+        return False
 # 6. 테이블 삭제
 def drop_table():
     conn = get_connection()

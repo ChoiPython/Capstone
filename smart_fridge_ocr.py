@@ -2,52 +2,108 @@ import cv2
 import pytesseract
 import re
 import time
+from datetime import datetime  # 💡 [추가] 현재 년도를 가져오기 위해 필요합니다!
 from picamera2 import Picamera2 
 from libcamera import controls 
 from yolov8 import detect_food_category
+import numpy as np
 
-# [1] 유통기한 추출 함수 
+# [1] 💡 대폭 강화된 유통기한 정규식 추출 함수 
 def extract_expiry_date(ocr_text):
+    # 알파벳 오인식 방지 전처리
     clean_text = ocr_text.replace('O', '0').replace('o', '0').replace('I', '1').replace('i', '1')
-    patterns = [r'20\d{6}', r'20\d{2}[.\s]+\d{2}[.\s]+\d{2}']
-    for p in patterns:
+    
+    # 시스템의 현재 년도를 가져옴 (예: "2024", "2026" 등)
+    current_year = str(datetime.now().year)
+    
+    # 검색할 패턴 목록 (우선순위가 높은 긴 날짜부터 순서대로 찾음)
+    patterns = [
+        # 1순위: YYYY.MM.DD (예: 2026.06.20, 2026-06-20, 20260620 등)
+        (r'20\d{2}[.\s\-\/]*[01]\d[.\s\-\/]*[0-3]\d', 8),
+        
+        # 2순위: YY.MM.DD (예: 26.06.20, 26 06 20, 260620 등)
+        (r'[23]\d[.\s\-\/]*[01]\d[.\s\-\/]*[0-3]\d', 6),
+        
+        # 3순위: MM.DD (예: 06.20, 06/20, 06-20 등)
+        # ※ 오작동 방지를 위해 월(01~12)과 일(01~31) 사이에 반드시 구분자(.)가 있도록 설정
+        (r'([01]\d)[.\s\-\/]+([0-3]\d)', 4)
+    ]
+    
+    for p, expected_len in patterns:
         match = re.search(p, clean_text)
         if match:
-            raw_date = match.group()
-            only_nums = re.sub(r'[^0-9]', '', raw_date)
-            if len(only_nums) >= 8:
-                date_str = only_nums[:8]
-                return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+            # 3순위(MM.DD)가 발견되었을 때의 처리
+            if expected_len == 4:
+                month = match.group(1)
+                day = match.group(2)
+                # 월(1~12)과 일(1~31)이 상식적인 날짜 범위인지 1차 검증
+                if 1 <= int(month) <= 12 and 1 <= int(day) <= 31:
+                    # 💡 현재 년도를 강제로 앞에 붙여줌!
+                    return f"{current_year}-{month}-{day}"
+            
+            # 1순위, 2순위(YYYY.MM.DD / YY.MM.DD)가 발견되었을 때의 처리
+            else:
+                raw_date = match.group()
+                nums = re.sub(r'[^0-9]', '', raw_date) # 숫자만 깔끔하게 추출
+                
+                # 8자리인 경우 (YYYYMMDD)
+                if len(nums) == 8:
+                    return f"{nums[:4]}-{nums[4:6]}-{nums[6:8]}"
+                # 6자리인 경우 (YYMMDD)
+                elif len(nums) == 6:
+                    return f"20{nums[:2]}-{nums[2:4]}-{nums[4:6]}" 
+                    
     return None
 
 # [2] 전처리 및 OCR 함수 
 def process_frame_for_date(frame):
-    img = cv2.resize(frame, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+    img = cv2.resize(frame, None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # 💡 [핵심 개선] 샤프닝(Sharpening) 필터 적용 
+    # 글자의 윤곽선을 날카롭게 강조하여 6과 8, 3과 8의 구분을 명확하게 합니다.
+    sharpen_kernel = np.array([[0, -1, 0], 
+                               [-1, 5,-1], 
+                               [0, -1, 0]])
+    gray = cv2.filter2D(gray, -1, sharpen_kernel)
+    
+    # Tesseract 옵션: 숫자 인식률을 높이는 --oem 3 (기본 엔진) 추가
+    tess_config = '--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789.-/ '
+
     stages = [
-        {'name': 'Stage 1: Normal', 'kernel': None, 'iter': 0, 'invert': False},
-        {'name': 'Stage 1: Inverted', 'kernel': None, 'iter': 0, 'invert': True},
-        {'name': 'Stage 2: Light Blur', 'kernel': (3, 3), 'iter': 0, 'invert': True},
-        {'name': 'Stage 3: Heavy Blur & Dilation', 'kernel': (5, 5), 'iter': 1, 'invert': True},
+        {'name': 'Adaptive Threshold', 'type': 'adaptive', 'blur': (3, 3)},
+        {'name': 'Otsu Binary Inv', 'type': 'otsu_inv', 'blur': (3, 3)},
+        {'name': 'Otsu Binary', 'type': 'otsu', 'blur': (3, 3)},
+        {'name': 'High Contrast Otsu', 'type': 'contrast_otsu', 'blur': (5, 5)},
     ]
 
     for stage in stages:
         processed = gray.copy()
-        if stage['kernel'] is not None:
-            processed = cv2.GaussianBlur(processed, stage['kernel'], 0)
-        _, thresh = cv2.threshold(processed, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        if stage['iter'] > 0:
-            k = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-            thresh = cv2.dilate(thresh, k, iterations=stage['iter'])
         
-        final_for_ocr = cv2.bitwise_not(thresh) if stage['invert'] else thresh
-        config = '--psm 11 -c preserve_interword_spaces=1'
-        result = pytesseract.image_to_string(final_for_ocr, config=config)
+        # 블러를 너무 강하게 주면 글자가 뭉개지므로 가볍게만 처리
+        if stage['blur']:
+            processed = cv2.GaussianBlur(processed, stage['blur'], 0)
+            
+        if stage['type'] == 'adaptive':
+            final_img = cv2.adaptiveThreshold(
+                processed, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                cv2.THRESH_BINARY, 11, 2
+            )
+        elif stage['type'] == 'otsu_inv':
+            _, final_img = cv2.threshold(processed, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        elif stage['type'] == 'otsu':
+            _, final_img = cv2.threshold(processed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        elif stage['type'] == 'contrast_otsu':
+            processed = cv2.equalizeHist(processed)
+            _, final_img = cv2.threshold(processed, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+        result = pytesseract.image_to_string(final_img, config=tess_config)
         
         date_match = extract_expiry_date(result)
         if date_match:
-            print(f"✅ [{stage['name']}] get date!: {date_match}")
+            print(f"✅ [{stage['name']}] 인식 성공!: {date_match}")
             return date_match
+            
     return None
 
 # [3] 🔥 실시간 자동 스캔 + 오류 해결 카메라 함수
@@ -137,7 +193,7 @@ def run_camera_scan():
 
             # 1. 닫기 버튼 터치 감지
             if touch_action == "CLOSE":
-                print("사용자가 화면의 'CLOSE' 버튼을 터치하여 종료합니다.")
+                print("process closed by user.")
                 return None
 
             # 💡 2. [핵심] 실시간 연속 스캔 (1초에 한 번씩 검사)
@@ -148,7 +204,7 @@ def run_camera_scan():
                 found_date = process_frame_for_date(roi)
                 
                 if found_date:
-                    print(f"🎉 자동 인식 성공: {found_date}")
+                    print(f"ocr success: {found_date}")
                     # 성공 시 화면에 피드백을 보여주고 0.5초 대기
                     cv2.putText(display_frame, "Success!", (250, 200), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 255), 3)
                     cv2.imshow(window_name, display_frame)
