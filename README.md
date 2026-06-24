@@ -101,7 +101,6 @@ smart_fridge_project/
 ├── assets/                 # UI 아이콘, 대시보드 구조도 및 시각 자료
 ├── tests/                  # 기능 QA 및 데이터 정합성 검증 스크립트
 │   └── insert_dummy.py     # 데이터베이스 테스트용 더미 데이터 삽입 스크립트
-├── requirements.txt        # 의존성 패키지 리스트 (opencv-python, ultralytics 등)
 ├── main.py                 # 프로그램 전체 실행 진입점 (Main Entry)
 │
 └── src/
